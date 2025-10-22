@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 from typing import Any, Optional
 
-from cli_project.metrics.base import Metric, MetricResult
+from src.cli_project.metrics.base import Metric, MetricResult
 
 # -------------------------------------------------------------------
 # Allowed licenses

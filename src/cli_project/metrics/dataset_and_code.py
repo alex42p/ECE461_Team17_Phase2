@@ -11,7 +11,7 @@ from __future__ import annotations
 import re, time
 from typing import Any, Dict
 
-from cli_project.metrics.base import Metric, MetricResult, clamp01
+from src.cli_project.metrics.base import Metric, MetricResult, clamp01
 
 
 # -----------------------

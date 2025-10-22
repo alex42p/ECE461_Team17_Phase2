@@ -11,8 +11,8 @@ from __future__ import annotations
 import time
 from typing import Any, Dict
 
-from cli_project.metrics.base import Metric, MetricResult, clamp01
-from cli_project.adapters.llm_v0 import fetch_ramp_up_time_with_llm
+from src.cli_project.metrics.base import Metric, MetricResult, clamp01
+from src.cli_project.adapters.llm_v0 import fetch_ramp_up_time_with_llm
 
 
 class RampUpTimeMetric(Metric):

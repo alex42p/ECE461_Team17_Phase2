@@ -10,8 +10,8 @@ higher scores reflect better-documented, more maintainable codebases.
     
 import time
 from typing import Any, Dict
-from cli_project.metrics.base import MetricResult, Metric
-from cli_project.adapters.huggingface_inspect import clone_model_repo, clean_up_cache
+from src.cli_project.metrics.base import MetricResult, Metric
+from src.cli_project.adapters.huggingface_inspect import clone_model_repo, clean_up_cache
 
 class CodeQualityMetric(Metric):
     """
