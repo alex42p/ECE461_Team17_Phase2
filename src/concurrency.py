@@ -7,7 +7,7 @@ def compute_all_metrics(
     context: dict[str, Any],
     metrics: List[Metric],
     max_workers: int | None = None
-) -> List[MetricResult]:
+    ) -> List[MetricResult]:
     """
     Compute all metrics for a given Hugging Face model metadata in parallel.
     Each metric runs in its own thread, results collected as MetricResult.
