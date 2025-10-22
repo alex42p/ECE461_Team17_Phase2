@@ -2,12 +2,12 @@
 requests==2.32.5
 huggingface-hub==0.35.1
 transformers==4.56.2
-tqdm==4.67.1
+tqdm==4.67.1 # don't need
 GitPython==3.1.45
 
 # Dev / testing tools
 pytest==8.4.2
 pytest-cov
-flake8==7.3.0
+# flake8==7.3.0
 mypy==1.18.1
 types-requests==2.32.4.20250913

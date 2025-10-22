@@ -1,8 +1,8 @@
 import time
 from typing import Any, Dict, List
 
-from cli_project.core.concurrency import compute_all_metrics
-from cli_project.metrics.base import Metric, MetricResult
+from src.cli_project.core.concurrency import compute_all_metrics
+from src.cli_project.metrics.base import Metric, MetricResult
 
 
 class DummyMetric(Metric):
@@ -12,6 +12,7 @@ class DummyMetric(Metric):
         self._fail = fail
         self._delay = delay
 
+    @property
     def name(self) -> str:
         return self._name
 
