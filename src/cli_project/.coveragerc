@@ -1,7 +1,0 @@
-[run]
-source = cli_project
-parallel = true
-branch = true
-
-[report]
-show_missing = true

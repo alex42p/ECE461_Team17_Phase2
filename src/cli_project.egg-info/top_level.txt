@@ -1,3 +1,0 @@
-cli-project
-cli_project
-modelscore
