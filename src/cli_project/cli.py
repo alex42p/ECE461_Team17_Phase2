@@ -1,28 +1,17 @@
 # pragma: no cover
 from pathlib import Path
 import sys
-import subprocess
-import json, sys, time
 from typing import Any
-from cli_project.core import log
 from cli_project import tester
-from cli_project.urls.base import parse_url_file
-from cli_project.io.ndjson import NDJSONEncoder
-from cli_project.core.entities import HFModel
-from cli_project.metrics.base import Metric, MetricResult
-from cli_project.metrics.license import LicenseMetric
-from cli_project.metrics.bus_factor import BusFactorMetric
-from cli_project.metrics.performance_claims import PerformanceClaimsMetric
-from cli_project.metrics.ramp_up_time import RampUpTimeMetric
-from cli_project.metrics.size_score import SizeScoreMetric
-from cli_project.metrics.dataset_and_code import DatasetAndCodeMetric
-from cli_project.metrics.dataset_quality import DatasetQualityMetric
-from cli_project.metrics.code_quality import CodeQualityMetric
-from cli_project.metrics.dataset_quality import DatasetQualityMetric
-from cli_project.core.concurrency import compute_all_metrics
+from core import log
+from urls.base import parse_url_file
+from io.ndjson import NDJSONEncoder
+from core.entities import HFModel
+from metrics.base import Metric
+from core.concurrency import compute_all_metrics
 
-from cli_project.adapters.huggingface import fetch_repo_metadata
-from cli_project.adapters.git_repo import fetch_bus_factor_raw_contributors
+from adapters.huggingface import fetch_repo_metadata
+from adapters.git_repo import fetch_bus_factor_raw_contributors
 
 
 def test() -> None: # pragma: no cover

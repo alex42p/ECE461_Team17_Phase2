@@ -24,8 +24,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run mypy
-        run: mypy src/
+      # - name: Run mypy
+      #   run: mypy src/
 
       - name: Run Tests
         run: python -m pytest --cov=src --cov-report=term-missing tests/

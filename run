@@ -55,10 +55,10 @@ def main() -> None:
     elif arg == "install":
         install()
     elif arg == "test":
-        from cli_project import cli
+        from src.cli_project import cli
         cli.test()
     else:
-        from cli_project import cli
+        from src.cli_project import cli
         cli.score(arg)
 
 if __name__ == "__main__":
