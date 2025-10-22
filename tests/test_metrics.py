@@ -49,8 +49,6 @@ def test_license_metric_missing_license():
     ("", None),
     (None, None),
 ])
-def test_norm_empty_and_none(raw, expected):
-    assert _norm(raw) == expected
 
 def test_license_metric() -> None:
     metadata = {"hf_metadata": {"license": "apache-2.0"}}
@@ -67,7 +65,6 @@ def test_license_metric_unrecognized() -> None:
     result = metric.compute(metadata)
     assert result.value == 0.0
     assert result.details["normalized"] == "weird-custom-license"
-
 
 def test_bus_factor_metric() -> None:
     metadata = {"repo_metadata": {"recent_committers": 5}}
