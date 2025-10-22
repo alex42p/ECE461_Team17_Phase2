@@ -1,10 +1,10 @@
 import pytest
 from pathlib import Path
 from typing import Any, Dict
-from cli_project.metrics.code_quality import CodeQualityMetric
-from cli_project.metrics.dataset_quality import DatasetQualityMetric
-from cli_project.metrics.dataset_and_code import DatasetAndCodeMetric
-from cli_project.metrics.base import MetricResult
+from src.cli_project.metrics.code_quality import CodeQualityMetric
+from src.cli_project.metrics.dataset_quality import DatasetQualityMetric
+from src.cli_project.metrics.dataset_and_code import DatasetAndCodeMetric
+from src.cli_project.metrics.base import MetricResult
 
 # ----------------------------
 # Fake metadata (matches your CLI structure)

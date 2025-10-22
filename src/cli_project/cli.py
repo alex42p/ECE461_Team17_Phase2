@@ -9,7 +9,6 @@ from io.ndjson import NDJSONEncoder
 from core.entities import HFModel
 from metrics.base import Metric
 from core.concurrency import compute_all_metrics
-
 from adapters.huggingface import fetch_repo_metadata
 from adapters.git_repo import fetch_bus_factor_raw_contributors
 
