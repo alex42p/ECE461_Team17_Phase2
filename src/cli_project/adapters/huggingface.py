@@ -1,5 +1,5 @@
-from cli_project.urls.base import HFModelURL  # , classify_url
-from cli_project.core.entities import HFModel
+from src.cli_project.urls.base import HFModelURL  # , classify_url
+from src.cli_project.core.entities import HFModel
 import requests  # type: ignore
 from typing import Any
 from urllib.parse import urlparse
