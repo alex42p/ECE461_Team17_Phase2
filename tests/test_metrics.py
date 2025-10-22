@@ -1,16 +1,16 @@
 import pytest
 from typing import Any
-from src.cli_project.metrics.license import LicenseMetric
-from src.cli_project.metrics.bus_factor import BusFactorMetric
-from src.cli_project.metrics.ramp_up_time import RampUpTimeMetric
-from src.cli_project.metrics.performance_claims import PerformanceClaimsMetric
-from src.cli_project.metrics.size_score import SizeScoreMetric
-from src.cli_project.metrics.base import MetricResult
-from src.cli_project.adapters import git_repo
-from src.cli_project.adapters.huggingface import fetch_repo_metadata
-from src.cli_project.urls.base import HFModelURL, CodeRepoURL
-from src.cli_project.core.entities import HFModel
-from src.cli_project.adapters.git_repo import fetch_bus_factor_raw_contributors
+from src.license import LicenseMetric
+from src.bus_factor import BusFactorMetric
+from src.ramp_up_time import RampUpTimeMetric
+from src.performance_claims import PerformanceClaimsMetric
+from src.size_score import SizeScoreMetric
+from src.metric import MetricResult
+from src import git_repo
+from src.huggingface import fetch_repo_metadata
+from src.base import HFModelURL, CodeRepoURL
+from src.entities import HFModel
+from src.git_repo import fetch_bus_factor_raw_contributors
 
 LICENSE_CASES = [
     ("MIT", "mit", 1.0),

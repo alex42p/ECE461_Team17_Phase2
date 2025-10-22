@@ -1,6 +1,6 @@
 import json
 from typing import Any
-from src.cli_project.core.entities import HFModel
+from entities import HFModel
 
 class NDJSONEncoder:
     """Utility to convert HFModel objects (with results) into NDJSON lines."""

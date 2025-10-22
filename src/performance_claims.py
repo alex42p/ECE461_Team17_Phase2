@@ -12,8 +12,8 @@ from __future__ import annotations
 import time
 from typing import Any, Dict
 
-from src.cli_project.metrics.base import Metric, MetricResult, clamp01
-from src.cli_project.adapters.llm_v0 import fetch_performance_claims_with_llm
+from metric import Metric, MetricResult, clamp01
+from llm_v0 import fetch_performance_claims_with_llm
 
 
 class PerformanceClaimsMetric(Metric):

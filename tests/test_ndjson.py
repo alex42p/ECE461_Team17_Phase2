@@ -1,9 +1,9 @@
 import json
 import pytest
-from src.cli_project.io.ndjson import NDJSONEncoder
-from src.cli_project.core.entities import HFModel
-from src.cli_project.metrics.base import MetricResult
-from src.cli_project.urls.base import HFModelURL
+from src.ndjson import NDJSONEncoder
+from src.entities import HFModel
+from src.metric import MetricResult
+from src.base import HFModelURL
 
 def make_model_with_metrics(url: str, results: list[MetricResult] | None = None) -> HFModel:
     model = HFModel(HFModelURL(url))

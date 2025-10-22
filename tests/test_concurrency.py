@@ -1,8 +1,8 @@
 import time
 from typing import Any, Dict, List
 
-from src.cli_project.core.concurrency import compute_all_metrics
-from src.cli_project.metrics.base import Metric, MetricResult
+from src.concurrency import compute_all_metrics
+from src.metric import Metric, MetricResult
 
 
 class DummyMetric(Metric):

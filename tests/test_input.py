@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from src.cli_project.urls.base import parse_url_file, HFModelURL, HFDatasetURL, CodeRepoURL
+from src.base import parse_url_file, HFModelURL, HFDatasetURL, CodeRepoURL
 
 def test_parse_single_model(tmp_path: Path) -> None:
     file = tmp_path / "urls.txt"

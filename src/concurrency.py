@@ -1,7 +1,7 @@
 import concurrent.futures
 import time
 from typing import List, Any
-from src.cli_project.metrics.base import Metric, MetricResult
+from metric import Metric, MetricResult
 
 def compute_all_metrics(
     context: dict[str, Any],

@@ -2,15 +2,15 @@
 from pathlib import Path
 import sys
 from typing import Any
-from cli_project import tester
-from core import log
-from urls.base import parse_url_file
-from io.ndjson import NDJSONEncoder
-from core.entities import HFModel
-from metrics.base import Metric
-from core.concurrency import compute_all_metrics
-from adapters.huggingface import fetch_repo_metadata
-from adapters.git_repo import fetch_bus_factor_raw_contributors
+import tester
+import log
+from base import parse_url_file
+from ndjson import NDJSONEncoder
+from entities import HFModel
+from metric import Metric
+from concurrency import compute_all_metrics
+from huggingface import fetch_repo_metadata
+from git_repo import fetch_bus_factor_raw_contributors
 
 
 def test() -> None: # pragma: no cover

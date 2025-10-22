@@ -10,8 +10,8 @@ popular, and more usable datasets.
 
 from typing import Any
 import time
-from src.cli_project.metrics.base import Metric, MetricResult
-from src.cli_project.adapters.huggingface import fetch_dataset_metadata
+from metric import Metric, MetricResult
+from huggingface import fetch_dataset_metadata
 
 
 class DatasetQualityMetric(Metric):

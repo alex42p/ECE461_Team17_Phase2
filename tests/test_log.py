@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 import pytest
 
-import src.cli_project.core.log as log
+import src.log as log
 
 
 def test_setup_logging_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:

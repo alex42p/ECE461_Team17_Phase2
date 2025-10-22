@@ -12,7 +12,7 @@ Returns a per-device score dictionary and latency in milliseconds.
 """
 
 import time
-from src.cli_project.metrics.base import Metric, MetricResult, validate_size_score_map
+from metric import Metric, MetricResult, validate_size_score_map
 from typing import Any
 
 DEVICE_THRESHOLDS = {

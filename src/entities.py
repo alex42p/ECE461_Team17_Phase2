@@ -2,8 +2,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Union, Any
-from src.cli_project.urls.base import HFModelURL
-from src.cli_project.metrics.base import MetricResult
+from base import HFModelURL
+from metric import MetricResult
 from urllib.parse import urlparse
 
 @dataclass
