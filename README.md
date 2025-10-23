@@ -6,11 +6,10 @@ Group List (Name, GitHub User):
 3. Joey D'Alessandro (joeyd514)
 
 ## TODO:
-  - All clone the repo
   - Fix the code so it doesn't suck booty (take previous implementation and improve the design a bit)
+    - fix the rest of the metrics and make sure output actually functions
   - Implement Phase 2 AWS stuff
-  - Get money?
-  - Add MyPy checks back in AFTER code is properly cleaned
+  - Add MyPy checks back to CI/CD AFTER code is properly cleaned
 
 ## Accomplishments
   - Restructured the repo including: 
@@ -19,3 +18,6 @@ Group List (Name, GitHub User):
     - removed all tests
     - temporarily fixed CI/CD pipeline
   - Fixed code entrypoint (cli.py) so that stuff actually runs when you call "./run [arg]"
+
+  - Metrics fixed:
+    - License

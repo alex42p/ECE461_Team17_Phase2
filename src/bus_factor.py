@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 from typing import Any, Dict
 
-from metric import Metric, MetricResult, clamp01
+from metric import Metric, MetricResult, clamp
 
 
 class BusFactorMetric(Metric):
@@ -30,7 +30,7 @@ class BusFactorMetric(Metric):
             n_committers = 0
 
         # Normalize: simple linear scale up to 10 contributors
-        val = clamp01(n_committers / 10.0)
+        val = clamp(n_committers / 10.0)
 
         details: Dict[str, int] = {"recent_committers": int(n_committers)}
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 import re, time
 from typing import Any, Dict
 
-from metric import Metric, MetricResult, clamp01
+from metric import Metric, MetricResult, clamp
 
 
 # -----------------------
@@ -80,7 +80,7 @@ class DatasetAndCodeMetric(Metric):
         # -----------------
         # Aggregate score
         # -----------------
-        score = clamp01(
+        score = clamp(
             self.W_DATASET * (1.0 if dataset_present else 0.0) +
             self.W_CODE    * (1.0 if code_present else 0.0)
         )

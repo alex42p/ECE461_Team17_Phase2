@@ -63,7 +63,7 @@ class Metric(ABC):
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-def clamp01(x: float) -> float:
+def clamp(x: float) -> float:
     """Clamp a float into [0,1]."""
     if x != x:  # NaN check
         return 0.0
@@ -80,5 +80,5 @@ def validate_size_score_map(m: Mapping[str, float]) -> Dict[str, float]:
         key = str(k)
         val = float(v)
 
-        out[key] = clamp01(val)
+        out[key] = clamp(val)
     return out

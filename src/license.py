@@ -15,40 +15,42 @@ from typing import Any, Optional
 from metric import Metric, MetricResult
 
 # -------------------------------------------------------------------
-# Allowed licenses
-# -------------------------------------------------------------------
-ALLOWED = {
-    "mit", "apache-2.0", "bsd-2-clause", "bsd-3-clause", "bsd",
-    "lgpl-2.1", "lgpl-2.1-only", "lgpl-2.1-or-later"
-}
-
-# -------------------------------------------------------------------
-# Normalizer
-# -------------------------------------------------------------------
-def _norm(s: Optional[str]) -> Optional[str]:
-    if not s:
-        return None
-    s = s.lower()
-    if "mit" in s:
-        return "mit"
-    if "apache" in s and "2.0" in s:
-        return "apache-2.0"
-    if "bsd-3" in s or ("bsd" in s and "3" in s):
-        return "bsd-3-clause"
-    if "bsd-2" in s or ("bsd" in s and "2" in s):
-        return "bsd-2-clause"
-    if s.strip() == "bsd":
-        return "bsd"
-    if "lgpl" in s and "2.1" in s and "3.0" not in s:
-        return "lgpl-2.1"
-    if "lgpl" in s and "3.0" in s:
-        return "lgpl-3.0"
-    return s.strip()
-
-# -------------------------------------------------------------------
 # License Metric
 # -------------------------------------------------------------------
 class LicenseMetric(Metric):
+    def __init__(self) -> None:
+        super().__init__()
+        self.ALLOWED = {
+            "mit", "apache-2.0", "bsd", "lgpl", "cc0-1.0",
+        }
+        self.PROBLEMATIC = {
+            "gpl", "agpl", "cc-by-nc", "proprietary"
+        }
+
+    def _norm(self, s: Optional[str]) -> str:
+        if not s:
+            return ""
+        s = s.lower()
+        if "mit" in s:
+            return "mit"
+        if "apache" in s:
+            return "apache-2.0"
+        if "bsd" in s:
+            return "bsd"
+        if "lgpl" in s and "2.1" in s:
+            return "lgpl-2.1"
+        if "agpl" in s:
+            return "agpl"
+        if "gpl" in s:
+            return "gpl"
+        if "cc-" in s:
+            return "cc-by-nc"
+        if "cc" in s:
+            return "cc0-1.0"
+        if "proprietary" in s:
+            return "proprietary"
+        return s.strip()
+    
     @property
     def name(self) -> str:
         return "license"
@@ -60,10 +62,9 @@ class LicenseMetric(Metric):
         t0 = time.time()
 
         raw_license = metadata["hf_metadata"].get("license")
-        # raw_license = metadata[metadata["hf_metadata"]]
-        lic_norm = _norm(raw_license)
+        lic_norm = self._norm(raw_license)
 
-        score = 1.0 if lic_norm in ALLOWED else 0.0
+        score = 1.0 if lic_norm in self.ALLOWED else 0.4 if lic_norm in self.PROBLEMATIC else 0.0
         latency = int((time.time() - t0) * 1000)
 
         return MetricResult(

@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 from typing import Any, Dict
 
-from metric import Metric, MetricResult, clamp01
+from metric import Metric, MetricResult, clamp
 from llm_v0 import fetch_ramp_up_time_with_llm
 
 
@@ -37,7 +37,7 @@ class RampUpTimeMetric(Metric):
         try:
             llm_result: Dict[str, Any] = fetch_ramp_up_time_with_llm(repo_url)
 
-            score = clamp01(llm_result.get("score", 0.0))
+            score = clamp(llm_result.get("score", 0.0))
             details = {
                 "doc_completeness": llm_result.get("doc_completeness", 0.0),
                 "installability": llm_result.get("installability", 0.0),

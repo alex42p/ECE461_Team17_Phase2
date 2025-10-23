@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 from typing import Any, Dict
 
-from metric import Metric, MetricResult, clamp01
+from metric import Metric, MetricResult, clamp
 from llm_v0 import fetch_performance_claims_with_llm
 
 
@@ -40,7 +40,7 @@ class PerformanceClaimsMetric(Metric):
             llm_result: Dict[str, Any] = fetch_performance_claims_with_llm(repo_url)
 
             claims = llm_result.get("claims", {})
-            score = clamp01(llm_result.get("score", 0.0))
+            score = clamp(llm_result.get("score", 0.0))
         except Exception as e:
             return MetricResult(
                 name=self.name,
