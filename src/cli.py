@@ -1,7 +1,8 @@
-# pragma: no cover
 from pathlib import Path
 import sys
+import subprocess
 from typing import Any
+import argparse
 import tester
 import log
 from base import parse_url_file
@@ -12,16 +13,18 @@ from concurrency import compute_all_metrics
 from huggingface import fetch_repo_metadata
 from git_repo import fetch_bus_factor_raw_contributors
 
+def install() -> None:
+    """Implements ./run install"""
+    print("Install required dependencies...")
+    rc = subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "-q"]).returncode
+    print(f"Dependencies installed! Exit code: {rc}")
+    sys.exit(rc)
 
 def test() -> None: # pragma: no cover
     """Implements ./run test """
     log.setup_logging()
     rc = tester.run_tests()
-
     sys.exit(rc)
-    # print("0/0 test cases passed. 0% line coverage achieved.")
-
-    # sys.exit(1)
 
 def score(url_file: str) -> None: # pragma: no cover
     """Implements ./run URL_FILE"""
@@ -29,7 +32,6 @@ def score(url_file: str) -> None: # pragma: no cover
 
     url_path = Path(url_file)
     url_objs = parse_url_file(url_path)
-    # print(url_objs)
 
     models: list[HFModel] = []
     for u in url_objs:
@@ -71,3 +73,45 @@ def score(url_file: str) -> None: # pragma: no cover
     # Encode + print as NDJSON
     NDJSONEncoder.print_records(models)
     sys.exit(0)
+
+
+def main(argv: list[str] | None = None) -> None:
+    """CLI entrypoint. Dispatches to test() or score()."""
+    parser = argparse.ArgumentParser(
+        prog="run",
+        description="Score HF model URLs or run tests. Use 'test', 'install', or provide a URL file.",
+    )
+
+    subparsers = parser.add_subparsers(dest="command")
+
+    # test subcommand
+    subparsers.add_parser("test", help="Run the test suite")
+
+    # install subcommand
+    subparsers.add_parser("install", help="Install required dependencies")
+
+    # score subcommand with url file
+    score_parser = subparsers.add_parser("score", help="Score models from a URL file")
+    score_parser.add_argument("url_file", help="Path to the URL file to score")
+
+    # allow legacy positional behavior: if no subcommand but a single arg is provided, treat it as url_file
+    # Use provided argv list or fall back to process argv
+    raw_args: list[str] = list(argv) if argv is not None else sys.argv[1:]
+    args, unknown = parser.parse_known_args(raw_args)
+
+    # If user ran `run -h` or similar, argparse will handle printing help/exit
+
+    if args.command == "test":
+        test()
+    elif args.command == "install":
+        install()
+    else:
+        # No subcommand provided. If there is exactly one positional argument, treat it as url_file
+        if len(raw_args) == 1:
+            score(raw_args[0])
+        else:
+            parser.print_help()
+
+
+if __name__ == "__main__":
+    main()
