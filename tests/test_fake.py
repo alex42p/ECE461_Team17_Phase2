@@ -1,2 +1,5 @@
-def test_bs():
-    assert True
+import pytest
+
+class TestFake:
+    def test_asdf(self):
+        assert True

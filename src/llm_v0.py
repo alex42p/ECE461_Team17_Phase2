@@ -1,4 +1,3 @@
-import os
 import requests  # type: ignore
 from urllib.parse import urlparse
 import re

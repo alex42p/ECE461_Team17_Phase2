@@ -15,9 +15,7 @@ from git_repo import fetch_bus_factor_raw_contributors
 
 def install() -> None:
     """Implements ./run install"""
-    print("Install required dependencies...")
     rc = subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "-q"]).returncode
-    print(f"Dependencies installed! Exit code: {rc}")
     sys.exit(rc)
 
 def test() -> None: # pragma: no cover

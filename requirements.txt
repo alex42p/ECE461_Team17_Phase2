@@ -1,13 +1,13 @@
 # Core dependencies
-requests==2.32.5
-huggingface-hub==0.35.1
-transformers==4.56.2
-tqdm==4.67.1 # don't need
-GitPython==3.1.45
+requests
+huggingface-hub
+transformers
+tqdm # don't need
+GitPython
 
 # Dev / testing tools
-pytest==8.4.2
+pytest
 pytest-cov
-# flake8==7.3.0
-mypy==1.18.1
-types-requests==2.32.4.20250913
+# flake8
+mypy
+types-requests

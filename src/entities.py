@@ -1,7 +1,6 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import List, Union, Any
+from dataclasses import dataclass
+from typing import Any
 from base import HFModelURL
 from metric import MetricResult
 from urllib.parse import urlparse

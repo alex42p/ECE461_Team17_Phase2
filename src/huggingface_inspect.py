@@ -1,10 +1,6 @@
-import os
 import git
-import json
 import shutil
-from transformers import AutoTokenizer
 from pathlib import Path
-from typing import Any
 
 # Cache directory where models will be stored
 CACHE_DIR = Path("./cache")

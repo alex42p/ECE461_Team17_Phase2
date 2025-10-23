@@ -1,4 +1,3 @@
-from base import HFModelURL  # , classify_url
 from entities import HFModel
 import requests  # type: ignore
 from typing import Any
