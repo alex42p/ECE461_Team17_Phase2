@@ -12,48 +12,43 @@ Returns a per-device score dictionary and latency in milliseconds.
 """
 
 import time
-from metric import Metric, MetricResult, validate_size_score_map
+from metric import Metric, MetricResult, clamp
 from typing import Any
 
-DEVICE_THRESHOLDS = {
-    "raspberry_pi": (50, 200),
-    "jetson_nano": (200, 800),
-    "desktop_pc": (500, 2000),
-    "aws_server": (1000, 5000),
-}
 
 class SizeScoreMetric(Metric):
     """
     Computes per-device size suitability scores for model deployment,
     and reports latency of score computation.
     """
+    def __init__(self) -> None:
+        super().__init__()
+        self.DEVICE_THRESHOLDS = {
+            "raspberry_pi": 2000,
+            "jetson_nano": 8000,
+            "desktop_pc": 16000,
+            "aws_server": 64000,
+        }
+
     @property
     def name(self) -> str:
         return "size_score"
 
     def compute(self, metadata: dict[str, Any]) -> MetricResult:
         t0 = time.time()
-        size_mb = metadata["hf_metadata"].get("size_mb", 0)
+        storage_size = metadata["hf_metadata"].get("size_mb", 0)
         scores = {}
 
-        for device, (min_mb, max_mb) in DEVICE_THRESHOLDS.items():
-            if min_mb <= size_mb <= max_mb:
-                score = 1.0
-            elif size_mb < min_mb and min_mb > 0:
-                score = size_mb / min_mb
-            elif size_mb > max_mb and size_mb > 0:
-                score = max_mb / size_mb
-            else:
-                score = 0.0
+        for device, max_mb in self.DEVICE_THRESHOLDS.items():
+            usage = max_mb / storage_size if storage_size > 0 else 0.0
+            scores[device] = round(usage, 3) if usage <= 1.0 else 1.0
 
-            scores[device] = round(min(max(score, 0.0), 1.0), 3)
-
-        scores = validate_size_score_map(scores)
+        # scores = validate_size_score_map(scores) # REDUNDANT USELESS FUCKING CODE
         latency = int((time.time() - t0) * 1000)
 
         return MetricResult(
             name=self.name,
             value=scores,
-            details={"size_mb": size_mb},
+            details={"size_mb": storage_size},
             latency_ms=latency,
         )

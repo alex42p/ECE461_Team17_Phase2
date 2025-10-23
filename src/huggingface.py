@@ -1,5 +1,5 @@
 from entities import HFModel
-import requests  # type: ignore
+import requests 
 from typing import Any
 from urllib.parse import urlparse
 

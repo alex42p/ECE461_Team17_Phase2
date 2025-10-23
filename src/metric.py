@@ -73,12 +73,13 @@ def clamp(x: float) -> float:
         return 1.0
     return float(x)
 
-def validate_size_score_map(m: Mapping[str, float]) -> Dict[str, float]:
-    """Validate and normalize a size_score map ({device -> score in [0,1]})."""
-    out: Dict[str, float] = {}
-    for k, v in m.items():
-        key = str(k)
-        val = float(v)
+""" 100% useless dogshit code - waste of computer memory and ChatGPT tokens"""
+# def validate_size_score_map(m: Mapping[str, float]) -> Dict[str, float]:
+#     """Validate and normalize a size_score map ({device -> score in [0,1]})."""
+#     out: Dict[str, float] = {}
+#     for k, v in m.items():
+#         key = str(k)
+#         val = float(v)
 
-        out[key] = clamp(val)
-    return out
+#         out[key] = clamp(val)
+#     return out
