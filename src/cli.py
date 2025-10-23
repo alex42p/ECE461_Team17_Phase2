@@ -18,13 +18,13 @@ def install() -> None:
     rc = subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "-q"]).returncode
     sys.exit(rc)
 
-def test() -> None: # pragma: no cover
+def test() -> None:
     """Implements ./run test """
     log.setup_logging()
     rc = tester.run_tests()
     sys.exit(rc)
 
-def score(url_file: str) -> None: # pragma: no cover
+def score(url_file: str) -> None:
     """Implements ./run URL_FILE"""
     log.setup_logging()
 

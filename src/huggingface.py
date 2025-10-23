@@ -90,15 +90,20 @@ def fetch_repo_metadata(model: HFModel) -> dict[str, Any]:
         metadata = {
             "repo_url": model.model_url.url,
             "repo_id": model.repo_id,
-            "downloads": data.get("downloads", "N/A"),
-            "likes": data.get("likes", "N/A"),
-            "last_modified": data.get("lastModified", "N/A"),
+            "downloads": data.get("downloads", ""),
+            "downloads_last_month": data.get("downloadsLastMonth", ""),
+            "likes": data.get("likes", ""),
+            "stars": data.get("stars", ""),
+            "last_modified": data.get("lastModified", ""),
             "num_files": len(file_list),
             "license": raw_license,
             "size_mb": data.get("usedStorage", 0) / (1024 * 1024),
             "readme_text": readme_text,
             "datasets": dataset_list,
             "files": file_list,
+            "description": data.get("description", ""),
+            "tags": data.get("tags", []),
+            "siblings": siblings,
         }
 
         model.metadata = metadata

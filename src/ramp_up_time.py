@@ -9,10 +9,9 @@ transparency.
 
 from __future__ import annotations
 import time
-from typing import Any, Dict
+from typing import Any
 
 from metric import Metric, MetricResult, clamp
-from llm_v0 import fetch_ramp_up_time_with_llm
 
 
 class RampUpTimeMetric(Metric):
@@ -24,28 +23,25 @@ class RampUpTimeMetric(Metric):
 
     def compute(self, metadata: dict[str, Any]) -> MetricResult:
         t0 = time.time()
-
-        repo_url = metadata["hf_metadata"].get("repo_url")
-        if not repo_url:
-            return MetricResult(
-                name=self.name,
-                value=0.0,
-                details={"error": "Missing repo_url"},
-                latency_ms=0,
-            )
-
+        score = 0.0 
+        
         try:
-            llm_result: Dict[str, Any] = fetch_ramp_up_time_with_llm(repo_url)
-
-            score = clamp(llm_result.get("score", 0.0))
+            repo_url = metadata["hf_metadata"].get("repo_url")
+            if not repo_url:
+                raise Exception("Missing repo_url")
+            # check README, model card, and usage stats
+            readme_score = self.eval_readme(metadata.get("readme_text", ""))
+            score += readme_score * 0.5
+            model_card_score = self.eval_model_card(metadata)
+            score += model_card_score * 0.2
+            usage_score = self.eval_usage(metadata)
+            score += usage_score * 0.3
             details = {
-                "doc_completeness": llm_result.get("doc_completeness", 0.0),
-                "installability": llm_result.get("installability", 0.0),
-                "quickstart": llm_result.get("quickstart", 0.0),
-                "config_clarity": llm_result.get("config_clarity", 0.0),
-                "troubleshooting": llm_result.get("troubleshooting", 0.0),
-                "justification": llm_result.get("justification", ""),
+                "readme_score": readme_score,
+                "model_card_score": model_card_score,
+                "usage_score": usage_score,
             }
+
         except Exception as e:
             return MetricResult(
                 name=self.name,
@@ -61,3 +57,45 @@ class RampUpTimeMetric(Metric):
             details=details,
             latency_ms=latency,
         )
+
+    def eval_readme(self, readme: str) -> float:
+        if not readme:
+            return 0.0
+        
+        readme_lower = readme.lower()
+        score = 0.0
+        
+        # check for how to use and proper documentation
+        if "usage" in readme_lower or "how to use" in readme_lower:
+            score += 0.3
+        if "example" in readme_lower or "```python" in readme_lower:
+            score += 0.3
+        if "install" in readme_lower:
+            score += 0.2
+        if len(readme) > 500: 
+            score += 0.2
+        
+        return clamp(score)
+
+    def eval_model_card(self, metadata) -> float:
+        score = 0.0
+        if metadata["hf_metadata"].get("description"):
+            score += 0.7
+        if metadata["hf_metadata"].get("readme_text"):
+            score += 0.2
+        if metadata["hf_metadata"].get("tags"):
+            score += 0.1
+        return clamp(score)
+
+    def eval_usage(self, metadata) -> float:
+        downloads = metadata["hf_metadata"].get("downloads", 0)
+        if not downloads:
+            downloads = metadata["hf_metadata"].get("downloads_last_month", 0)
+        likes = metadata["hf_metadata"].get("likes", 0)
+        stars = metadata["hf_metadata"].get("stars", 0) 
+
+        download_score = min(1.0, downloads / 10000)
+        like_score = min(1.0, likes / 100)
+        stars_score = min(1.0, stars / 100)
+        
+        return (download_score + like_score + stars_score) / 3
