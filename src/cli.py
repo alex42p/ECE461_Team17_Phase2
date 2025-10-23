@@ -76,41 +76,28 @@ def score(url_file: str) -> None: # pragma: no cover
 
 
 def main(argv: list[str] | None = None) -> None:
-    """CLI entrypoint. Dispatches to test() or score()."""
+    """CLI entrypoint. Dispatches to test(), install(), or score()."""
     parser = argparse.ArgumentParser(
         prog="run",
-        description="Score HF model URLs or run tests. Use 'test', 'install', or provide a URL file.",
+        description="Score HF model URLs, run tests, or install dependencies.",
     )
 
-    subparsers = parser.add_subparsers(dest="command")
+    parser.add_argument("command", nargs="?", help="'test' to run tests, 'install' for dependencies, or path to URL file")
 
-    # test subcommand
-    subparsers.add_parser("test", help="Run the test suite")
-
-    # install subcommand
-    subparsers.add_parser("install", help="Install required dependencies")
-
-    # score subcommand with url file
-    score_parser = subparsers.add_parser("score", help="Score models from a URL file")
-    score_parser.add_argument("url_file", help="Path to the URL file to score")
-
-    # allow legacy positional behavior: if no subcommand but a single arg is provided, treat it as url_file
     # Use provided argv list or fall back to process argv
     raw_args: list[str] = list(argv) if argv is not None else sys.argv[1:]
-    args, unknown = parser.parse_known_args(raw_args)
+    args = parser.parse_args(raw_args)
 
-    # If user ran `run -h` or similar, argparse will handle printing help/exit
-
-    if args.command == "test":
+    # If user ran `run -h`, argparse will handle printing help/exit
+    if not args.command:
+        parser.print_help()
+    elif args.command == "test":
         test()
     elif args.command == "install":
         install()
     else:
-        # No subcommand provided. If there is exactly one positional argument, treat it as url_file
-        if len(raw_args) == 1:
-            score(raw_args[0])
-        else:
-            parser.print_help()
+        # Treat any other argument as the URL file path
+        score(args.command)
 
 
 if __name__ == "__main__":

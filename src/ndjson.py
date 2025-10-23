@@ -34,7 +34,7 @@ class NDJSONEncoder:
             net_score = 0.0
             for metric, weight in weights.items():
                 if metric in model.metric_scores and isinstance(model.metric_scores[metric].value, (int, float)):
-                    net_score += model.metric_scores[metric].value * weight
+                    net_score += model.metric_scores[metric].value * weight # type: ignore
 
             record["net_score"] = round(net_score, 2)
 
