@@ -1,3 +1,4 @@
+import os
 import requests  # type: ignore
 from urllib.parse import urlparse
 import re
@@ -128,7 +129,7 @@ def fetch_ramp_up_time_with_llm(repo_url: str) -> Dict[str, Any]:
     Use an LLM to score ramp-up time readiness based on documentation quality.
     Returns a dict with subscores and an aggregate score.
     """
-    api_key = "sk-798d650f3cce4ea1968e9532bcc42e51"
+    api_key = os.environ["GEN_AI_STUDIO_API_KEY"] # probably needs to just be removed anyway
     if not api_key:
         return {
             "doc_completeness": 0.0,
