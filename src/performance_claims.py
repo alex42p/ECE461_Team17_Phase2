@@ -15,7 +15,7 @@ from typing import Any, Dict
 from metric import Metric, MetricResult, clamp
 from llm_v0 import fetch_performance_claims_with_llm
 
-
+# TODO: change this to the original Claude design for Performance Claims, removing the LLM call
 class PerformanceClaimsMetric(Metric):
     """Extract and score self-reported performance metrics using an LLM."""
 
@@ -34,7 +34,6 @@ class PerformanceClaimsMetric(Metric):
                 details={"error": "Missing repo_url"},
                 latency_ms=0,
             )
-
 
         try:
             llm_result: Dict[str, Any] = fetch_performance_claims_with_llm(repo_url)

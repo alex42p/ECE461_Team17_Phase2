@@ -1,5 +1,6 @@
-from pathlib import Path
+import os
 import sys
+from pathlib import Path
 import subprocess
 from typing import Any
 import argparse
@@ -12,6 +13,12 @@ from metric import Metric
 from concurrency import compute_all_metrics
 from huggingface import fetch_repo_metadata
 from git_repo import fetch_bus_factor_raw_contributors
+
+
+try:
+    GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
+except KeyError:
+    raise RuntimeError("GITHUB_TOKEN variable is missing, and you kinda need that.")
 
 def install() -> None:
     """Implements ./run install"""
@@ -42,7 +49,7 @@ def score(url_file: str) -> None:
 
         if model.model_url.code:
             repo_url = model.model_url.code[0].url
-            repo_metadata = fetch_bus_factor_raw_contributors(repo_url)
+            repo_metadata = fetch_bus_factor_raw_contributors(repo_url, GITHUB_TOKEN)
             repo_metadata["repo_url"] = repo_url
 
         else:

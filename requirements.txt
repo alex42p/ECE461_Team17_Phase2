@@ -1,13 +1,8 @@
-# Core dependencies
 requests
 huggingface-hub
 transformers
-tqdm # don't need
 GitPython
-
-# Dev / testing tools
 pytest
 pytest-cov
-# flake8
 mypy
 types-requests

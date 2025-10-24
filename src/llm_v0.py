@@ -50,12 +50,17 @@ def strip_hf_metadata(text: str) -> str:
     return re.sub(r"^---[\s\S]*?---\n", "", text, count=1)
 
 
+# TODO: Remove this function since LLM sucks at performance claims extraction anyway
 def fetch_performance_claims_with_llm(repo_url: str) -> Dict[str, Any]:
     """
     Use an LLM to extract numeric performance claims and compute a normalized score.
     Returns a dict: {"claims": {...}, "score": float}.
     """
-    api_key = "sk-798d650f3cce4ea1968e9532bcc42e51"
+    try:
+        api_key = os.environ["GEN_AI_STUDIO_API_KEY"]
+    except KeyError as e:
+        return {"score": 0.0, "claims": f"Environment variable error: {e}"}
+
     if not api_key:
         # Safe fallback for autograder if key isn’t injected
         return {

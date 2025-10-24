@@ -20,7 +20,7 @@ def fetch_bus_factor_raw_contributors(repo_url: str, token: Optional[str] = None
 
     headers = {"Accept": "application/vnd.github+json"}
     if token:
-        headers["Authorization"] = f"token {token}"
+        headers["Authorization"] = f"Bearer {token}"
 
     # 1) Unique contributors + contributions count
     contributors_api = f"https://api.github.com/repos/{owner}/{repo}/contributors"
@@ -57,7 +57,7 @@ def fetch_bus_factor_raw_contributors(repo_url: str, token: Optional[str] = None
         "unique_committers_count": unique_committers_count,
         "commit_count_by_committer": commit_count_by_committer,
         "last_commit_date": last_commit_date,
-        "recent_committers": unique_committers_count,
+        # "recent_committers": unique_committers_count,
         "method": "contributors",
     }
 

@@ -7,7 +7,7 @@ Group List (Name, GitHub User):
 
 ## TODO:
   - Fix the code so it doesn't suck booty (take previous implementation and improve the design a bit)
-    - fix the rest of the metrics and make sure output actually functions
+    - fix the rest of the metrics and make sure output is formatted correctly
   - Implement Phase 2 AWS stuff
   - Add MyPy checks back to CI/CD AFTER code is properly cleaned
 
@@ -18,6 +18,10 @@ Group List (Name, GitHub User):
     - removed all tests
     - temporarily fixed CI/CD pipeline
   - Fixed code entrypoint (cli.py) so that stuff actually runs when you call "./run [arg]"
-
   - Metrics fixed:
     - License
+    - Size
+    - Ramp Up Time
+    - Bus Factor
+
+Performance needs to be reworked to get rid of the LLM usage - change calculation back to the original Claude design from a very early commit
