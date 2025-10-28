@@ -1,6 +1,10 @@
-import git
+import os
+import git # type: ignore
 import shutil
 from pathlib import Path
+
+# create cache directory if it doesn't exist yet
+os.makedirs("./cache", exist_ok=True)
 
 # Cache directory where models will be stored
 CACHE_DIR = Path("./cache")

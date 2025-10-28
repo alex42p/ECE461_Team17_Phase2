@@ -6,3 +6,4 @@ pytest
 pytest-cov
 mypy
 types-requests
+Flask

@@ -18,10 +18,13 @@ Group List (Name, GitHub User):
     - removed all tests
     - temporarily fixed CI/CD pipeline
   - Fixed code entrypoint (cli.py) so that stuff actually runs when you call "./run [arg]"
+  - Added Flask app skeleton code so we can start building endpoints
   - Metrics fixed:
     - License
     - Size
     - Ramp Up Time
     - Bus Factor
+    - Performance Claims
+    - Dataset and Code
 
 Performance needs to be reworked to get rid of the LLM usage - change calculation back to the original Claude design from a very early commit

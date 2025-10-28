@@ -41,7 +41,7 @@ class CodeQualityMetric(Metric):
         score_components = {
             "readme_score": 0.0,
             "config_score": 0.0,
-            "training_script_score": 0.0,
+            # "training_script_score": 0.0,
             "python_file_score": 0.0,
             "structure_score": 0.0,
         }
@@ -58,11 +58,11 @@ class CodeQualityMetric(Metric):
             if config_path.exists():
                 score_components["config_score"] = 1.0
 
-            # 3. Training Script Score
-            for filename in ["train.py", "run.py", "finetune.py"]:
-                if (model_path / filename).exists():
-                    score_components["training_script_score"] = 1.0
-                    break
+            # # 3. Training Script Score
+            # for filename in ["train.py", "run.py", "finetune.py"]:
+            #     if (model_path / filename).exists():
+            #         score_components["training_script_score"] = 1.0
+            #         break
 
             # 4. Python Files Score
             py_files = list(model_path.rglob("*.py"))
@@ -71,20 +71,19 @@ class CodeQualityMetric(Metric):
             # 5. Structure Score: penalize if too many random files (>20 files)
             all_files = list(model_path.rglob("*"))
             file_count = len([f for f in all_files if f.is_file()])
-            if file_count <= 20:
+            if file_count <= 30:
                 score_components["structure_score"] = 1.0
-            elif file_count <= 50:
+            elif file_count <= 60:
                 score_components["structure_score"] = 0.5
             else:
-                score_components["structure_score"] = 0.0
+                score_components["structure_score"] = 0.25
 
             # Final quality = weighted average
             weights = {
-                "readme_score": 0.25,
-                "config_score": 0.2,
-                "training_script_score": 0.2,
-                "python_file_score": 0.2,
-                "structure_score": 0.15,
+                "readme_score": 0.40,
+                "config_score": 0.25,
+                "python_file_score": 0.25,
+                "structure_score": 0.10,
             }
 
             quality = sum(weights[k] * score_components[k] for k in score_components)
