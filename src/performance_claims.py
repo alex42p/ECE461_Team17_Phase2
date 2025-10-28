@@ -10,12 +10,11 @@ are self-reported, this metric is lightly weighted elsewhere.
 
 from __future__ import annotations
 import time
+import re
 from typing import Any, Dict
 
 from metric import Metric, MetricResult, clamp
-from llm_v0 import fetch_performance_claims_with_llm
 
-# TODO: change this to the original Claude design for Performance Claims, removing the LLM call
 class PerformanceClaimsMetric(Metric):
     """Extract and score self-reported performance metrics using an LLM."""
 
@@ -35,19 +34,14 @@ class PerformanceClaimsMetric(Metric):
                 latency_ms=0,
             )
 
-        try:
-            llm_result: Dict[str, Any] = fetch_performance_claims_with_llm(repo_url)
+        score = 0.0
 
-            claims = llm_result.get("claims", {})
-            score = clamp(llm_result.get("score", 0.0))
-        except Exception as e:
-            return MetricResult(
-                name=self.name,
-                value=0.0,
-                details={"error": str(e)},
-                latency_ms=int((time.time() - t0) * 1000),
-            )
-
+        readme_score = self.eval_readme(metadata["hf_metadata"].get("readme", ""))
+        score += readme_score * 0.7
+        siblings_score = self.eval_siblings(metadata["hf_metadata"])
+        score += siblings_score * 0.3
+        
+        claims = []
         latency = int((time.time() - t0) * 1000)
         return MetricResult(
             name=self.name,
@@ -55,3 +49,41 @@ class PerformanceClaimsMetric(Metric):
             details={"claims": claims},
             latency_ms=latency,
         )
+
+    def eval_readme(self, readme: str) -> float:
+        """Look for performance metrics in README"""
+        if not readme:
+            return 0.0
+        
+        readme_lower = readme.lower()
+        performance_indicators = {
+            "accuracy", "f1", "bleu", "rouge", "perplexity", 
+            "benchmark", "evaluation", "performance", "results"
+        }
+
+        score = 0.0
+        for indicator in performance_indicators:
+            if indicator in readme_lower:
+                score += 0.2
+        
+        # Look for numerical results (suggests actual benchmarking)
+        if re.search(r'\d+\.\d+', readme) and any(ind in readme_lower for ind in performance_indicators):
+            score += 0.3
+        
+        return clamp(score)
+    
+    def eval_siblings(self, metadata: Dict[str, Any]) -> float:
+        """Check for evaluation or benchmark files"""
+        files = metadata.get("siblings", [])
+        if not files:
+            return 0.0
+        
+        testing_indicators = {"eval", "benchmark", "test", "metric"}
+        
+        for file_info in files:
+            filename = file_info.get("rfilename", "").lower()
+            for indicator in testing_indicators:
+                if indicator in filename:
+                    return 1.0
+        
+        return 0.2

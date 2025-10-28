@@ -63,15 +63,15 @@ class Metric(ABC):
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-def clamp(x: float) -> float:
-    """Clamp a float into [0,1]."""
+def clamp(x: float, a: float = 0.0, b: float = 1.0) -> float:
+    """Clamp a float into [a,b]. Defaults to a=0, b=1"""
     if x != x:  # NaN check
         return 0.0
-    if x < 0.0:
-        return 0.0
-    if x > 1.0:
-        return 1.0
-    return float(x)
+    if x < a:
+        return a
+    if x > b:
+        return b
+    return x
 
 """ 100% useless dogshit code - waste of computer memory and ChatGPT tokens"""
 # def validate_size_score_map(m: Mapping[str, float]) -> Dict[str, float]:

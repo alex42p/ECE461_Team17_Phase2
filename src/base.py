@@ -2,10 +2,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-# -------------------
-# Base + Subclasses
-# -------------------
-
 @dataclass
 class UrlItem:
     """Abstract base representation of a URL (category + raw string)."""
@@ -37,25 +33,6 @@ class HFModelURL(UrlItem):
         self.datasets = datasets or []
         self.code = code or []
 
-
-
-
-# -------------------
-# Classifier
-# -------------------
-
-# def classify_url(raw: str) -> Union[HFDatasetURL, CodeRepoURL, HFModelURL, UrlItem]:
-#     """Classify a raw URL string into a typed UrlItem subclass."""
-#     raw = raw.strip()
-
-#     if "huggingface.co/datasets" in raw:
-#         return HFDatasetURL(raw)
-#     elif "github.com" in raw:
-#         return CodeRepoURL(raw)
-#     elif "huggingface.co" in raw and "/tree/" in raw:
-#         return HFModelURL(raw)
-#     else:
-#         return UrlItem(raw, "UNKNOWN")
 
 def parse_url_file(path: Path) -> list[HFModelURL]:
     """
