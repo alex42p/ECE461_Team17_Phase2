@@ -2,7 +2,6 @@
 This file is going to house our Flask app to run the website. It will hold all of the API endpoints as well as the logic to render the HTML templates.
 """
 
-# import flask
 from flask import Flask, request, jsonify, render_template, session 
 
 app = Flask(__name__)
