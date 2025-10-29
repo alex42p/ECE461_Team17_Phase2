@@ -21,3 +21,5 @@ htmlcov/
 dist/
 build/
 .pre-commit-cache/
+
+sample*.txt
