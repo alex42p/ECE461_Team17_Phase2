@@ -105,6 +105,7 @@ def fetch_repo_metadata(model: HFModel) -> dict[str, Any]:
             "description": data.get("description", ""),
             "tags": data.get("tags", []),
             "siblings": siblings,
+            "author": data.get("author", ""),
         }
 
         model.metadata = metadata
