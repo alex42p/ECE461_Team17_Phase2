@@ -35,6 +35,7 @@ def extract_dataset_id(url: str) -> str:
         return path_parts[1]  # top-level dataset
     return f"{path_parts[1]}/{path_parts[2]}"  # org/dataset
 
+
 def fetch_repo_metadata(model: HFModel) -> dict[str, Any]:
     """
     Fetch metadata for an HFModelURL instance via the Hugging Face API.
@@ -114,9 +115,6 @@ def fetch_repo_metadata(model: HFModel) -> dict[str, Any]:
         return {"": None}
 
 
-# -------------------------------
-# NEW: Fetch dataset metadata
-# -------------------------------
 def fetch_dataset_metadata(dataset_url: str) -> dict[str, Any]:
     """
     Fetch metadata for a Hugging Face dataset repo.

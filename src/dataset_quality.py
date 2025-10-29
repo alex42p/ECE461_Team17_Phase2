@@ -75,22 +75,22 @@ class DatasetQualityMetric(Metric):
         elif size_mb > 5000:
             size_score = 0.2  # not instantly fail, just penalize
         else:
-            size_score = min(1.0, size_mb / 500.0)  # 500MB → 1.0
+            size_score = min(1.0, size_mb / 5000.0)  # 5GB → 1.0
 
         # 5. Readme Score
         readme_score = 1.0 if len(readme_text) > 300 else len(readme_text) / 300.0
 
         # 6. License Score
-        license_score = 1.0 if license_str and license_str.lower() != "unknown" else 0.0
+        # license_score = 1.0 if license_str and license_str.lower() != "unknown" else 0.0
 
         # Weighted aggregation
         weights = {
-            "popularity": 0.25,
-            "like_score": 0.2,
+            "popularity": 0.3,
+            "like_score": 0.25,
             "file_score": 0.15,
             "size_score": 0.15,
             "readme_score": 0.15,
-            "license_score": 0.1,
+            # "license_score": 0.1,
         }
 
         total = (
@@ -98,8 +98,8 @@ class DatasetQualityMetric(Metric):
             weights["like_score"] * like_score +
             weights["file_score"] * file_score +
             weights["size_score"] * size_score +
-            weights["readme_score"] * readme_score +
-            weights["license_score"] * license_score
+            weights["readme_score"] * readme_score
+            # weights["license_score"] * license_score
         )
 
         details = {
@@ -108,7 +108,7 @@ class DatasetQualityMetric(Metric):
             "file_score": round(file_score, 3),
             "size_score": round(size_score, 3),
             "readme_score": round(readme_score, 3),
-            "license_score": round(license_score, 3),
+            # "license_score": round(license_score, 3),
             "downloads": downloads,
             "likes": likes,
             "num_files": num_files,
