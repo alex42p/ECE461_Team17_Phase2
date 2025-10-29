@@ -6,10 +6,9 @@ Group List (Name, GitHub User):
 3. Joey D'Alessandro (joeyd514)
 
 ## TODO:
-  - Fix the code so it doesn't suck booty (take previous implementation and improve the design a bit)
-    - fix the rest of the metrics and make sure output is formatted correctly
+  - 
   - Implement Phase 2 AWS stuff
-  - Add MyPy checks back to CI/CD AFTER code is properly cleaned
+    - start with API endpoints in `src/app.py`
 
 ## Accomplishments
   - Restructured the repo including: 

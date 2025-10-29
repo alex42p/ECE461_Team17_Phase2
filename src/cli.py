@@ -73,13 +73,7 @@ def score(url_file: str) -> None:
 
         model.metadata =  {"hf_metadata" : hf_metadata, "repo_metadata" : repo_metadata, "nof_code_ds" : nof_code_ds}
 
-        # print(model.metadata["hf_metadata"].get("repo_url"))
-        # metric_results: list[MetricResult] = []
-        # for metric_cls in Metric.__subclasses__():
-        #     metric = metric_cls()
-        #     result = metric.compute(model.metadata)
-        #     metric_results.append(result)
-        metrics = [cls() for cls in Metric.__subclasses__()]
+        metrics = [cls() for cls in Metric.__subclasses__()] # type: ignore
         metric_results = compute_all_metrics(model.metadata, metrics, max_workers=8)
 
         model.add_results(metric_results)

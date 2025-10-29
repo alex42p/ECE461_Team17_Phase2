@@ -41,12 +41,11 @@ class PerformanceClaimsMetric(Metric):
         siblings_score = self.eval_siblings(metadata["hf_metadata"])
         score += siblings_score * 0.3
         
-        claims = []
         latency = int((time.time() - t0) * 1000)
         return MetricResult(
             name=self.name,
             value=score,
-            details={"claims": claims},
+            details={"success": True},
             latency_ms=latency,
         )
 

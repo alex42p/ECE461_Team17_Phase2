@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, Dict
 from entities import HFModel
 
 class NDJSONEncoder:
@@ -19,21 +19,32 @@ class NDJSONEncoder:
 
         if "net_score" not in record and model.metric_scores:
             # Define weights for each metric
-            weights = {
-                "license": 0.20,
-                "code_quality": 0.18,
-                "dataset_quality": 0.15,
-                "ramp_up_time": 0.15,
-                "dataset_and_code_score": 0.12,
+            # weights = {
+            #     "license": 0.20,
+            #     "code_quality": 0.18,
+            #     "dataset_quality": 0.15,
+            #     "ramp_up_time": 0.15,
+            #     "dataset_and_code_score": 0.12,
+            #     "bus_factor": 0.10,
+            #     "performance_claims": 0.07,
+            #     "size": 0.03,
+            # }
+
+            weights: Dict[str, float] = {
+                "ramp_up_time": 0.20,
+                "license": 0.15,
+                "dataset_and_code_score": 0.10,
+                "performance_claims": 0.10,
                 "bus_factor": 0.10,
-                "performance_claims": 0.07,
-                "size": 0.03,
+                "code_quality": 0.15,
+                "dataset_quality": 0.15,
+                "size_score": 0.05
             }
 
             # Compute weighted score
             net_score = 0.0
             for metric, weight in weights.items():
-                if metric in model.metric_scores and isinstance(model.metric_scores[metric].value, (int, float)):
+                if metric in model.metric_scores and isinstance(model.metric_scores[metric].value, float):
                     net_score += model.metric_scores[metric].value * weight # type: ignore
 
             record["net_score"] = round(net_score, 2)
