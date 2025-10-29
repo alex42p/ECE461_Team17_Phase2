@@ -6,9 +6,10 @@ Group List (Name, GitHub User):
 3. Joey D'Alessandro (joeyd514)
 
 ## TODO:
-  - 
   - Implement Phase 2 AWS stuff
     - start with API endpoints in `src/app.py`
+  - Improve scores to match our original ones
+  - Add test suite back
 
 ## Accomplishments
   - Restructured the repo including: 

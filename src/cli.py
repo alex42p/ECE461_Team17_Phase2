@@ -73,7 +73,7 @@ def score(url_file: str) -> None:
 
         model.metadata =  {"hf_metadata" : hf_metadata, "repo_metadata" : repo_metadata, "nof_code_ds" : nof_code_ds}
 
-        metrics = [cls() for cls in Metric.__subclasses__()] 
+        metrics = [cls() for cls in Metric.__subclasses__()] # type: ignore
         metric_results = compute_all_metrics(model.metadata, metrics, max_workers=8)
 
         model.add_results(metric_results)

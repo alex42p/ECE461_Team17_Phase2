@@ -24,22 +24,12 @@ class PerformanceClaimsMetric(Metric):
 
     def compute(self, metadata: dict[str, Any]) -> MetricResult:
         t0 = time.time()
-        
-        repo_url: str = metadata["hf_metadata"].get("repo_url")
-        if not repo_url:
-            return MetricResult(
-                name=self.name,
-                value=0.0,
-                details={"error": "Missing repo_url"},
-                latency_ms=0,
-            )
-
         score = 0.0
 
-        readme_score = self.eval_readme(metadata["hf_metadata"].get("readme", ""))
-        score += readme_score * 0.7
+        readme_score = self.eval_readme(metadata["hf_metadata"].get("readme_text", ""))
+        score += readme_score * 0.8
         siblings_score = self.eval_siblings(metadata["hf_metadata"])
-        score += siblings_score * 0.3
+        score += siblings_score * 0.2
         
         latency = int((time.time() - t0) * 1000)
         return MetricResult(
