@@ -13,6 +13,18 @@ from metric import Metric
 from concurrency import compute_all_metrics
 from huggingface import fetch_repo_metadata
 from git_repo import fetch_bus_factor_raw_contributors
+# Import concrete metric modules so their classes are registered as
+# subclasses of Metric. Metric.__subclasses__() only returns classes
+# that have been imported/loaded, so we must import these modules
+# before constructing the metrics list below.
+import license as license_metric
+import code_quality
+import dataset_quality
+import ramp_up_time
+import dataset_and_code
+import bus_factor
+import performance_claims
+import size_score
 
 
 try:
