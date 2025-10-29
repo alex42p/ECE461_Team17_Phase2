@@ -30,7 +30,7 @@ class RampUpTimeMetric(Metric):
             if not repo_url:
                 raise Exception("Missing repo_url")
             # check README, model card, and usage stats
-            readme_score = self.eval_readme(metadata.get("readme_text", ""))
+            readme_score = self.eval_readme(metadata["hf_metadata"].get("readme_text", ""))
             score += readme_score * 0.5
             model_card_score = self.eval_model_card(metadata)
             score += model_card_score * 0.2
@@ -92,7 +92,7 @@ class RampUpTimeMetric(Metric):
         if not downloads:
             downloads = metadata["hf_metadata"].get("downloads_last_month", 0)
         likes = metadata["hf_metadata"].get("likes", 0)
-        stars = metadata["hf_metadata"].get("stars", 0) 
+        stars = metadata["hf_metadata"].get("stars", 0)
 
         download_score = min(1.0, downloads / 10000)
         like_score = min(1.0, likes / 100)
