@@ -37,15 +37,15 @@ class LicenseMetric(Metric):
             return "apache-2.0"
         if "bsd" in s:
             return "bsd"
-        if "lgpl" in s and "2.1" in s:
-            return "lgpl-2.1"
+        if "lgpl" in s:
+            return "lgpl"
         if "agpl" in s:
             return "agpl"
         if "gpl" in s:
             return "gpl"
         if "cc-" in s:
             return "cc-by-nc"
-        if "cc" in s:
+        if "cc0" in s:
             return "cc0-1.0"
         if "proprietary" in s:
             return "proprietary"

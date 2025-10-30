@@ -36,9 +36,12 @@ class SizeScoreMetric(Metric):
 
     def compute(self, metadata: dict[str, Any]) -> MetricResult:
         t0 = time.time()
-        storage_size = metadata["hf_metadata"].get("size_mb", 0)
-        scores = {}
+        try:
+            storage_size = float(metadata["hf_metadata"].get("size_mb", 0))
+        except (TypeError, ValueError):
+            storage_size = 0
 
+        scores = {}
         for device, max_mb in self.DEVICE_THRESHOLDS.items():
             usage = max_mb / storage_size if storage_size > 0 else 0.0
             scores[device] = round(usage, 3) if usage <= 1.0 else 1.0

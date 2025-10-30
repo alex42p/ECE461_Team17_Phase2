@@ -51,13 +51,14 @@ class PerformanceClaimsMetric(Metric):
         }
 
         score = 0.0
+        # First check for numeric results with performance indicators
+        has_numbers = bool(re.search(r'\d+\.\d+', readme))
         for indicator in performance_indicators:
             if indicator in readme_lower:
-                score += 0.2
-        
-        # Look for numerical results (suggests actual benchmarking)
-        if re.search(r'\d+\.\d+', readme) and any(ind in readme_lower for ind in performance_indicators):
-            score += 0.3
+                if has_numbers:
+                    score += 0.3  # More points for numeric results
+                else:
+                    score += 0.1  # Fewer points for just mentioning metrics
         
         return clamp(score)
     

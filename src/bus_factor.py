@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 from typing import Any, Dict
 from datetime import datetime, timezone
-from metric import Metric, MetricResult, clamp
+from metric import Metric, MetricResult
 
 
 class BusFactorMetric(Metric):
@@ -63,8 +63,8 @@ class BusFactorMetric(Metric):
         # Known organizations get higher scores
         organizations = [
             "google", "microsoft", "facebook", "meta", "openai", 
-            "anthropic", "huggingface", "stanford", "mit", "berkeley",
-            "research", "ai", "deepmind", "nvidia", "apple"
+            "anthropic", "huggingface", "stanford", "mit",
+            "deepmind", "nvidia", "apple", "berkeley"
         ]
         
         # Check both author and model ID for organization indicators
@@ -74,7 +74,7 @@ class BusFactorMetric(Metric):
                 return 1.0
         
         # Check if it looks like an organization (not individual name)
-        if any(indicator in search_text for indicator in ["team", "lab", "corp", "inc", "ltd", "research", "ai", "institute"]):
+        if any(indicator in search_text for indicator in ["team", "lab", "ai", "research", "corp", "inc", "ltd", "institute"]):
             return 0.8
         
         return 0.3  # Individual author

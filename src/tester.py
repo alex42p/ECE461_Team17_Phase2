@@ -22,13 +22,13 @@ def run_tests() -> int:
     # Show full pytest/coverage output
     sys.stdout.write(proc.stdout)
     sys.stderr.write(proc.stderr)
-    rc: int = proc.returncode
 
     stdout: str = proc.stdout
 
     # Extract coverage percentage
     coverage_percent: int = 0
-    match = re.search(r"TOTAL\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d+)%", stdout)
+
+    match = re.search(r"^TOTAL\b.*?(\d+)%\s*$", stdout, re.MULTILINE | re.IGNORECASE)
     if match:
         coverage_percent = int(match.group(1))
 
