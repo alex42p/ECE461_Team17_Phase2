@@ -74,4 +74,45 @@ class PackageStorage:
         
         with open(metadata_file, "r") as f:
             return json.load(f)
+    
+    def search_by_regex(self, regex_pattern: str) -> list[Dict[str, Any]]:
+        """
+        Search packages by regex pattern on name.
+        
+        Args:
+            regex_pattern: Regular expression to match against package names
+        
+        Returns:
+            List of matching packages, sorted by net score (descending)
+        """
+        import re
+        
+        try:
+            pattern = re.compile(regex_pattern, re.IGNORECASE)
+        except re.error as e:
+            raise ValueError(f"Invalid regex pattern: {e}")
+        
+        results = []
+        
+        # Scan all package metadata files
+        for metadata_file in self.metadata_dir.glob("*.json"):
+            try:
+                with open(metadata_file, "r") as f:
+                    package_data = json.load(f)
+                
+                # Check if name matches pattern
+                if pattern.search(package_data.get("name", "")):
+                    results.append(package_data)
+                    
+            except Exception as e:
+                print(f"Warning: Error reading {metadata_file}: {e}")
+                continue
+        
+        # Sort by net score (highest first)
+        results.sort(
+            key=lambda x: x.get("scores", {}).get("net_score", {}).get("value", 0),
+            reverse=True
+        )
+        
+        return results
 

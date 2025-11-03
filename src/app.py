@@ -114,6 +114,43 @@ def get_package(package_id: str):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/packages/byRegex', methods=['GET'])
+def search_by_regex():
+    """
+    Search packages by regex pattern.
+    
+    Query parameter:
+        RegEx: Regular expression pattern to match package names
+    
+    Examples:
+        GET /packages/byRegex?RegEx=bert
+        GET /packages/byRegex?RegEx=bert.*uncased
+        GET /packages/byRegex?RegEx=^gpt
+    
+    Returns:
+        List of matching packages sorted by net score (highest first)
+    """
+    try:
+        regex_pattern = request.args.get('RegEx')
+        
+        if not regex_pattern:
+            return jsonify({"error": "RegEx parameter is required"}), 400
+        
+        # Search packages
+        results = storage.search_by_regex(regex_pattern)
+        
+        return jsonify({
+            "success": True,
+            "count": len(results),
+            "regex_pattern": regex_pattern,
+            "packages": results
+        }), 200
+        
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 def run_scoring(url: str) -> dict[str, Any]:
     """
     Run scoring metrics on a Hugging Face model URL.
@@ -194,8 +231,9 @@ if __name__ == '__main__':
     print("  ECE461 Team 17 - Package Registry API")
     print("=" * 60)
     print("\nEndpoints:")
-    print("  POST /package         - Ingest and score a package")
-    print("  GET /package/<id>     - Retrieve package by ID")
+    print("  POST /package              - Ingest and score a package")
+    print("  GET  /package/<id>         - Retrieve package by ID")
+    print("  GET  /packages/byRegex     - Search packages by regex")
     print("\nListening on http://127.0.0.1:8080")
     print("=" * 60)
     app.run(host='127.0.0.1', port=8080, debug=True)
