@@ -1,0 +1,49 @@
+{
+  "id": "bert-base-uncased-1.0.0-fc11d06e",
+  "name": "bert-base-uncased",
+  "version": "1.0.0",
+  "url": "https://huggingface.co/bert-base-uncased",
+  "scores": {
+    "dataset_and_code_score": {
+      "value": 0.0,
+      "latency_ms": 0
+    },
+    "performance_claims": {
+      "value": 0.0,
+      "latency_ms": 0
+    },
+    "dataset_quality": {
+      "value": 0.0,
+      "latency_ms": 0
+    },
+    "code_quality": {
+      "value": 0.0,
+      "latency_ms": 0
+    },
+    "license": {
+      "value": 0.0,
+      "latency_ms": 0
+    },
+    "bus_factor": {
+      "value": 0.26,
+      "latency_ms": 0
+    },
+    "ramp_up_time": {
+      "value": 0.0,
+      "latency_ms": 0
+    },
+    "size_score": {
+      "value": {
+        "raspberry_pi": 0.0,
+        "jetson_nano": 0.0,
+        "desktop_pc": 0.0,
+        "aws_server": 0.0
+      },
+      "latency_ms": 0
+    },
+    "net_score": {
+      "value": 0.03
+    }
+  },
+  "created_at": "2025-11-03T02:17:48.400494"
+}

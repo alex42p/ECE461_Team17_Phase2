@@ -22,4 +22,9 @@ dist/
 build/
 .pre-commit-cache/
 
-sample*.txt
+sample*.txtvenv/
+venv/
+venv/
+package_storage/
+*.pyc
+__pycache__/
