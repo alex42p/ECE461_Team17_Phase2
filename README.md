@@ -27,5 +27,4 @@ Group List (Name, GitHub User):
     - Performance Claims
     - Dataset and Code
     - Code Quality (I think?)
-
-Performance needs to be reworked to get rid of the LLM usage - change calculation back to the original Claude design from a very early commit
+    - Dataset Quality
