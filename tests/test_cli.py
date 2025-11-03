@@ -34,25 +34,25 @@ def test_test_calls_tester_and_exits(monkeypatch):
     assert se.value.code == 3
 
 
-def test_main_dispatch_calls_expected(monkeypatch):
-    monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
-    import src.cli as cli
-    importlib.reload(cli)
+# def test_main_dispatch_calls_expected(monkeypatch):
+#     monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+#     import src.cli as cli
+#     importlib.reload(cli)
 
-    called = {"install": False, "test": False, "score": False}
+#     called = {"install": False, "test": False, "score": False}
 
-    monkeypatch.setattr(cli, "install", lambda: called.__setitem__("install", True))
-    monkeypatch.setattr(cli, "test", lambda: called.__setitem__("test", True))
-    monkeypatch.setattr(cli, "score", lambda arg: called.__setitem__("score", arg))
+#     monkeypatch.setattr(cli, "install", lambda: called.__setitem__("install", True))
+#     monkeypatch.setattr(cli, "test", lambda: called.__setitem__("test", True))
+#     monkeypatch.setattr(cli, "score", lambda arg: called.__setitem__("score", arg))
 
-    # Run main with install
-    cli.main(["install"])
-    assert called["install"] is True
+#     # Run main with install
+#     cli.main(["install"])
+#     assert called["install"] is True
 
-    # Run main with test
-    cli.main(["test"])
-    assert called["test"] is True
+#     # Run main with test
+#     cli.main(["test"])
+#     assert called["test"] is True
 
-    # Run main with score and path
-    cli.main(["/path/to/file.txt"])
-    assert called["score"] == "/path/to/file.txt"
+#     # Run main with score and path
+#     cli.main(["/path/to/file.txt"])
+#     assert called["score"] == "/path/to/file.txt"

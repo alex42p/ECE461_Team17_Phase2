@@ -86,7 +86,7 @@ def score(url_file: str) -> None:
     sys.exit(0)
 
 
-def main(argv: list[str]) -> None:
+def main() -> None:
     """CLI entrypoint. Dispatches to test(), install(), or score()."""
     parser = argparse.ArgumentParser(
         prog="run",
@@ -96,7 +96,7 @@ def main(argv: list[str]) -> None:
     parser.add_argument("command", nargs="?", help="'test' to run tests, 'install' for dependencies, or path to URL file")
 
     # Use provided argv list or fall back to process argv
-    raw_args: list[str] = list(argv) if argv is not None else sys.argv[1:]
+    raw_args: list[str] = sys.argv[1:] # list(argv) if argv is not None else 
     args = parser.parse_args(raw_args)
 
     # If user ran `run -h`, argparse will handle printing help/exit
