@@ -17,7 +17,7 @@ from typing import Any, Dict, Mapping, Union
 
 MetricValue = Union[float, Mapping[str, float]]
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class MetricResult:
     """
     Standard envelope returned by every metric.
