@@ -86,7 +86,7 @@ def score(url_file: str) -> None:
     sys.exit(0)
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str]) -> None:
     """CLI entrypoint. Dispatches to test(), install(), or score()."""
     parser = argparse.ArgumentParser(
         prog="run",
