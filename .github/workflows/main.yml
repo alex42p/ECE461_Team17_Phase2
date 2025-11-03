@@ -1,6 +1,8 @@
-name: Main Pipeline
+name: Test Pipeline
 
-on: [push]
+on: 
+  push:
+    branches: [ main ]
 
 jobs:
   build: 

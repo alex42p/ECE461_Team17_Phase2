@@ -1,0 +1,14 @@
+[Unit]
+Description=Pieta App container
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+ExecStartPre=-/usr/bin/docker stop pieta_app
+ExecStartPre=-/usr/bin/docker rm pieta_app
+ExecStart=/usr/bin/docker run --name pieta_app -p 8000:8000 --restart=unless-stopped 123456789012.dkr.ecr.us-east-1.amazonaws.com/ece461-team17-phase2:latest
+ExecStop=/usr/bin/docker stop pieta_app
+
+[Install]
+WantedBy=multi-user.target

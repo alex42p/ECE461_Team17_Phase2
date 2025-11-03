@@ -22,8 +22,7 @@ dist/
 build/
 .pre-commit-cache/
 
-sample*.txtvenv/
-venv/
+sample*.txt
 venv/
 package_storage/
 *.pyc

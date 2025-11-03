@@ -1,0 +1,76 @@
+name: Build and Deploy to AWS ECR + EC2
+
+on:
+  push:
+    branches: [ prod ]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-and-push:
+    name: Build, tag and push to ECR
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: ece461-team17-phase2
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-duration-seconds: 900
+        # Alternatively use aws-access-key-id / aws-secret-access-key if not assuming role
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Get ECR repo URI
+        id: ecr-uri
+        run: |
+          REPO=${{ env.IMAGE_NAME }}
+          REGION=${{ secrets.AWS_REGION }}
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "REPO_URI=${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${REPO}" >> $GITHUB_ENV
+
+      - name: Build Docker image
+        run: |
+          IMAGE_TAG=${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker build -t $IMAGE_TAG .
+          docker tag $IMAGE_TAG $REPO_URI:latest
+          docker tag $IMAGE_TAG $REPO_URI:${{ github.sha }}
+
+      - name: Push image to ECR
+        run: |
+          REPO_URI=${REPO_URI}
+          docker push ${REPO_URI}:latest
+          docker push ${REPO_URI}:${{ github.sha }}
+
+      - name: Deploy to EC2 via SSH
+        if: ${{ secrets.EC2_HOSTNAME != '' }}
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOSTNAME }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_SSH_PORT || '22' }}
+          script: |
+            set -e
+            REPO_URI=${REPO_URI}
+            echo "Pulling image ${REPO_URI}:latest"
+            docker pull ${REPO_URI}:latest
+            # Optional: stop current container (adjust name)
+            if docker ps -a --format '{{.Names}}' | grep -q '^pieta_app$'; then
+              docker stop pieta_app || true
+              docker rm pieta_app || true
+            fi
+            # Run the new container
+            docker run -d --restart=unless-stopped --name pieta_app -p 8000:8000 ${REPO_URI}:latest
+
+  # Optional: additional job to tag GitHub release or to push to multiple targets
+
