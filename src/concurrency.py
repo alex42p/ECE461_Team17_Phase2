@@ -15,16 +15,17 @@ def compute_all_metrics(
     results: List[MetricResult] = []
 
     def timed_compute(metric: Metric) -> MetricResult:
-        t0 = time.perf_counter()
+        # t0 = time.perf_counter()
         result = metric.compute(context)
-        latency = int((time.perf_counter() - t0) * 1000)
-        # Preserve original details but override latency
-        return MetricResult(
-            name=result.name,
-            value=result.value,
-            details=result.details,
-            latency_ms=latency,
-        )
+        # latency = int((time.perf_counter() - t0) * 1000)
+        # # Preserve original details but override latency
+        # return MetricResult(
+        #     name=result.name,
+        #     value=result.value,
+        #     details=result.details,
+        #     latency_ms=latency,
+        # )
+        return result
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(timed_compute, m): m for m in metrics}
