@@ -6,7 +6,7 @@ from metric import Metric, MetricResult
 def compute_all_metrics(
     context: dict[str, Any],
     metrics: List[Metric],
-    max_workers: int | None = None
+    max_workers: int = 8
     ) -> List[MetricResult]:
     """
     Compute all metrics for a given Hugging Face model metadata in parallel.
