@@ -151,7 +151,7 @@ def run_scoring(url: str) -> dict[str, Any]:
         }
         
         # Run all metrics
-        metrics = [cls() for cls in Metric.__subclasses__()]
+        metrics = [cls() for cls in Metric.__subclasses__()] # type: ignore
         metric_results = compute_all_metrics(model.metadata, metrics, max_workers=4)
         
         # Convert to dict

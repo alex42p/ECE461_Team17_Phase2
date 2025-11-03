@@ -27,3 +27,5 @@ venv/
 package_storage/
 *.pyc
 __pycache__/
+
+src/package_storage/metadata/
