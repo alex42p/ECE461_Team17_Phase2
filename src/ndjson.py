@@ -13,23 +13,15 @@ class NDJSONEncoder:
             "category": model.model_url.category,
         }
 
-        for r in model.metric_scores.values():
+        # Sort metrics by name for consistent ordering
+        sorted_metrics = sorted(model.metric_scores.items(), key=lambda x: x[0])
+        
+        for metric_name, r in sorted_metrics:
             record[r.name] = r.value
             record[f"{r.name}_latency"] = r.latency_ms
 
         if "net_score" not in record and model.metric_scores:
             # Define weights for each metric
-            # weights = {
-            #     "license": 0.20,
-            #     "code_quality": 0.18,
-            #     "dataset_quality": 0.15,
-            #     "ramp_up_time": 0.15,
-            #     "dataset_and_code_score": 0.12,
-            #     "bus_factor": 0.10,
-            #     "performance_claims": 0.07,
-            #     "size": 0.03,
-            # }
-
             weights: Dict[str, float] = {
                 "ramp_up_time": 0.20,
                 "license": 0.15,
