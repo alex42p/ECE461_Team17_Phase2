@@ -30,46 +30,62 @@ class CodeQualityMetric(Metric):
 
     def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         t0 = time.time()
-        model_id = metadata["hf_metadata"].get("repo_id", None)
-        if not model_id:
+        # model_id = metadata["hf_metadata"].get("repo_id", None)
+        nof_code_ds = metadata.get("nof_code_ds") or {}
+        if nof_code_ds.get("nof_code"):
+            return MetricResult(
+                name=self.name,
+                value=1.0,
+                details={"success": True},
+                latency_ms=max(1, int((time.time() - t0) * 1000))
+            )
+        else:
             return MetricResult(
                 name=self.name,
                 value=0.0,
                 details={"error": "No model ID found in metadata"},
                 latency_ms=0
             )
-        logger.info(f"Computing code quality for model {model_id}")
 
-        try:
-            score = 0.0
-            siblings = metadata["hf_metadata"].get("siblings", [])
+        # if not model_id:
+        #     return MetricResult(
+        #         name=self.name,
+        #         value=0.0,
+        #         details={"error": "No model ID found in metadata"},
+        #         latency_ms=0
+        #     )
+        # logger.info(f"Computing code quality for model {model_id}")
 
-            readme_len = len(metadata["hf_metadata"].get("readme_text", ""))  
-            if readme_len:
-                score += min(1.0, readme_len / 500.0) * 0.5
+        # try:
+        #     score = 0.0
+        #     siblings = metadata["hf_metadata"].get("siblings", [])
 
-            # check if config.json is in the siblings list
-            for file_info in siblings:
-                file = file_info.get("rfilename", "").lower()
-                if file == "config.json":
-                    score += 0.5
-                    break
+        #     readme_len = len(metadata["hf_metadata"].get("readme_text", ""))  
+        #     if readme_len:
+        #         score += min(1.0, readme_len / 500.0) * 0.5
 
-            latency = max(1, int((time.time() - t0) * 1000))
-            return MetricResult(
-                name=self.name,
-                value=score,
-                details={"success": True},
-                latency_ms=latency
-            )
+        #     # check if config.json is in the siblings list
+        #     for file_info in siblings:
+        #         file = file_info.get("rfilename", "").lower()
+        #         if file == "config.json":
+        #             score += 0.5
+        #             break
 
-        except Exception as e:
-            print(f"Error computing code quality for {model_id}: {e}")
-            latency = max(1, int((time.time() - t0) * 1000))
-            return MetricResult(
-                name=self.name,
-                value=0.0,
-                details={"error": str(e)},
-                latency_ms=latency
-            )
+        #     latency = max(1, int((time.time() - t0) * 1000))
+        #     return MetricResult(
+        #         name=self.name,
+        #         value=score,
+        #         details={"success": True},
+        #         latency_ms=latency
+        #     )
+
+        # except Exception as e:
+        #     print(f"Error computing code quality for {model_id}: {e}")
+        #     latency = max(1, int((time.time() - t0) * 1000))
+        #     return MetricResult(
+        #         name=self.name,
+        #         value=0.0,
+        #         details={"error": str(e)},
+        #         latency_ms=latency
+        #     )
 
