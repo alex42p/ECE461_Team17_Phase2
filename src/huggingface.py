@@ -43,7 +43,7 @@ def fetch_repo_metadata(model: HFModel) -> dict[str, Any]:
     try:
         model.repo_id = extract_repo_id(model.model_url.url)
     except ValueError as e:
-        print(e)
+        # print(e)
         return {"": None}
 
     api_url = f"https://huggingface.co/api/models/{model.repo_id}"
@@ -51,7 +51,7 @@ def fetch_repo_metadata(model: HFModel) -> dict[str, Any]:
     try:
         response = requests.get(api_url)
         if response.status_code != 200:
-            print(f"Failed to fetch model data: HTTP {response.status_code}")
+            # print(f"Failed to fetch model data: HTTP {response.status_code}")
             return {"": None}
 
         data = response.json()
@@ -71,7 +71,8 @@ def fetch_repo_metadata(model: HFModel) -> dict[str, Any]:
                             raw_license = line.split(":", 1)[1].strip()
                             break
         except Exception as e:
-            print(f"Error fetching README: {e}")
+            # print(f"Error fetching README: {e}")
+            pass
 
         try:
             dataset_list = data.get("datasets", [])
@@ -112,7 +113,7 @@ def fetch_repo_metadata(model: HFModel) -> dict[str, Any]:
         return metadata
 
     except Exception as e:
-        print(f"Error fetching repo metadata: {e}")
+        # print(f"Error fetching repo metadata: {e}")
         return {"": None}
 
 
@@ -123,7 +124,7 @@ def fetch_dataset_metadata(dataset_url: str) -> dict[str, Any]:
     try:
         dataset_id = extract_dataset_id(dataset_url)
     except ValueError as e:
-        print(e)
+        # print(e)
         return {"": None}
 
     api_url = f"https://huggingface.co/api/datasets/{dataset_id}"
@@ -131,7 +132,7 @@ def fetch_dataset_metadata(dataset_url: str) -> dict[str, Any]:
     try:
         response = requests.get(api_url)
         if response.status_code != 200:
-            print(f"Failed to fetch dataset: HTTP {response.status_code}")
+            # print(f"Failed to fetch dataset: HTTP {response.status_code}")
             return {"": None}
 
         data = response.json()
@@ -145,7 +146,8 @@ def fetch_dataset_metadata(dataset_url: str) -> dict[str, Any]:
             if resp.status_code == 200:
                 readme_text = resp.text
         except Exception as e:
-            print(f"Error fetching dataset README: {e}")
+            # print(f"Error fetching dataset README: {e}")
+            pass
 
         file_list = []
         try:
@@ -153,7 +155,7 @@ def fetch_dataset_metadata(dataset_url: str) -> dict[str, Any]:
             if isinstance(siblings, list):
                 file_list = [s.get("rfilename") for s in siblings if isinstance(s, dict) and "rfilename" in s]
         except Exception as e:
-            print(f"[WARN] Failed to extract dataset file metadata: {e}")
+            # print(f"[WARN] Failed to extract dataset file metadata: {e}")
             file_list = []
 
         metadata = {
@@ -172,5 +174,5 @@ def fetch_dataset_metadata(dataset_url: str) -> dict[str, Any]:
         return metadata
 
     except Exception as e:
-        print(f"Error fetching dataset metadata: {e}")
+        # print(f"Error fetching dataset metadata: {e}")
         return {"": None}
