@@ -8,10 +8,10 @@ jobs:
   build: 
     runs-on: ubuntu-latest
 
-    # env: # add necessary environment variables here
+    env: # add necessary environment variables here
       # GEN_AI_STUDIO_API_KEY: ${{ secrets.GEN_AI_STUDIO_API_KEY }}
       # HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
