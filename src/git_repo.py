@@ -1,7 +1,8 @@
 import requests
 from typing import Any, Dict, Optional
+import logging
 
-
+logger = logging.getLogger(__name__)
 
 def fetch_bus_factor_raw_contributors(repo_url: str, token: Optional[str] = None) -> Dict[str, Any]:
     """
@@ -32,12 +33,12 @@ def fetch_bus_factor_raw_contributors(repo_url: str, token: Optional[str] = None
         r = requests.get(contributors_api, params=params, headers=headers)
         if r.status_code != 200:
             # raise Exception(f"Error fetching contributors: {r.status_code}, {r.text}")
-            print(f"Error fetching contributors: {r.status_code}, {r.text}")
+            logger.error(f"Error fetching contributors: {r.status_code}, {r.text}")
             break
 
         data = r.json()
         if not data or not isinstance(data, list):
-            print(f"Unexpected response format: {data}")
+            logger.warning(f"Unexpected response format: {data}")
             break
 
         for c in data:
