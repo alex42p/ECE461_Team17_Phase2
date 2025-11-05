@@ -12,6 +12,8 @@ jobs:
       # GEN_AI_STUDIO_API_KEY: ${{ secrets.GEN_AI_STUDIO_API_KEY }}
       # HF_TOKEN: ${{ secrets.HF_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      LOG_FILE: src/app.log
+      LOG_LEVEL: '0'
 
     steps:
       - uses: actions/checkout@v4
