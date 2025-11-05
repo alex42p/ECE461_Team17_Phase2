@@ -30,11 +30,14 @@ def fetch_bus_factor_raw_contributors(repo_url: str, token: Optional[str] = None
     while True:
         params = {"per_page": 100, "page": page}
         r = requests.get(contributors_api, params=params, headers=headers)
-        # if r.status_code != 200:
+        if r.status_code != 200:
             # raise Exception(f"Error fetching contributors: {r.status_code}, {r.text}")
+            print(f"Error fetching contributors: {r.status_code}, {r.text}")
+            break
 
         data = r.json()
-        if not data:
+        if not data or not isinstance(data, list):
+            print(f"Unexpected response format: {data}")
             break
 
         for c in data:
