@@ -17,6 +17,7 @@ def fetch_bus_factor_raw_contributors(repo_url: str, token: Optional[str] = None
     """
     repo_url = repo_url.rstrip('/')
     owner, repo = repo_url.split('/')[-2], repo_url.split('/')[-1]
+    # print("repo_url:", repo_url, ", owner:", owner, ", repo:", repo)
 
     headers = {"Accept": "application/vnd.github+json"}
     if token:
@@ -29,8 +30,8 @@ def fetch_bus_factor_raw_contributors(repo_url: str, token: Optional[str] = None
     while True:
         params = {"per_page": 100, "page": page}
         r = requests.get(contributors_api, params=params, headers=headers)
-        if r.status_code != 200:
-            raise Exception(f"Error fetching contributors: {r.status_code}, {r.text}")
+        # if r.status_code != 200:
+            # raise Exception(f"Error fetching contributors: {r.status_code}, {r.text}")
 
         data = r.json()
         if not data:
@@ -57,7 +58,6 @@ def fetch_bus_factor_raw_contributors(repo_url: str, token: Optional[str] = None
         "unique_committers_count": unique_committers_count,
         "commit_count_by_committer": commit_count_by_committer,
         "last_commit_date": last_commit_date,
-        # "recent_committers": unique_committers_count,
         "method": "contributors",
     }
 
