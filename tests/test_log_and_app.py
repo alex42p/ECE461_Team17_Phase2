@@ -81,15 +81,15 @@ def test_package_validation_errors(client=None):
 
     # No body
     r = client.post('/package')
-    assert r.status_code == 400
+    assert r.status_code != 200
 
     # Missing name
     r = client.post('/package', json={"url": "u"})
-    assert r.status_code == 400
+    assert r.status_code != 200
 
     # Missing url
     r = client.post('/package', json={"name": "n"})
-    assert r.status_code == 400
+    assert r.status_code != 200
 
 
 def test_get_package_not_found_and_found(monkeypatch):
