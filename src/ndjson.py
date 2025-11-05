@@ -18,18 +18,6 @@ class NDJSONEncoder:
             record[f"{r.name}_latency"] = r.latency_ms
 
         if "net_score" not in record and model.metric_scores:
-            # Define weights for each metric
-            # weights = {
-            #     "license": 0.20,
-            #     "code_quality": 0.18,
-            #     "dataset_quality": 0.15,
-            #     "ramp_up_time": 0.15,
-            #     "dataset_and_code_score": 0.12,
-            #     "bus_factor": 0.10,
-            #     "performance_claims": 0.07,
-            #     "size": 0.03,
-            # }
-
             weights: Dict[str, float] = {
                 "ramp_up_time": 0.20,
                 "license": 0.15,

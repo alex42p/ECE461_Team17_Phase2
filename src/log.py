@@ -1,10 +1,15 @@
 import os
 import logging
+from dotenv import load_dotenv # type: ignore
+load_dotenv()
 
 def setup_logging() -> None:
     """Setup logging from $LOG_FILE and $LOG_LEVEL environment variables."""
-    log_file = os.getenv("LOG_FILE", "app.log")     # default filename
-    log_level_env = os.getenv("LOG_LEVEL", "0")     # default = silent
+    try:
+        log_file = os.environ["LOG_FILE"]
+        log_level_env = os.environ["LOG_LEVEL"]
+    except KeyError as e:
+        raise RuntimeError(f"A logging environment variable is not properly set, cannot setup logging.", e)
 
     try:
         log_level_num = int(log_level_env)
