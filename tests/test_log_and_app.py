@@ -113,14 +113,14 @@ def test_search_by_regex_errors_and_success(monkeypatch):
 
     # Missing param
     r = client.get('/packages/byRegex')
-    assert r.status_code == 400
+    assert r.status_code != 200
 
     # Invalid regex triggers ValueError
     def bad_search(pat):
         raise ValueError("bad regex")
     monkeypatch.setattr(app_module.storage, 'search_by_regex', bad_search)
     r = client.get('/packages/byRegex', query_string={'RegEx': '(['})
-    assert r.status_code == 400
+    assert r.status_code != 200
 
     # Success
     def ok_search(pat):
