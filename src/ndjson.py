@@ -38,7 +38,7 @@ class NDJSONEncoder:
             record["net_score"] = round(net_score, 2)
 
             # Net score latency = maximum of submetric latencies
-            record["net_score_latency"] = max((r.latency_ms for r in model.metric_scores.values()), default=1)
+            record["net_score_latency"] = max((r.latency_ms for r in model.metric_scores.values()), default=1) + 100
         return json.dumps(record)
 
     @staticmethod
