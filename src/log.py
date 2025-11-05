@@ -1,6 +1,6 @@
 import os
 import logging
-from dotenv import load_dotenv # type: ignore
+from dotenv import load_dotenv
 load_dotenv()
 
 def setup_logging() -> None:
