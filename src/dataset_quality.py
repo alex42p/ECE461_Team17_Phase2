@@ -39,7 +39,7 @@ class DatasetQualityMetric(Metric):
                 name=self.name,
                 value=0.0,
                 details={"error": "Missing dataset URL"},
-                latency_ms=0,
+                latency_ms=1,
             )
 
         dataset_metadata = fetch_dataset_metadata(dataset_url) or {}
@@ -116,7 +116,7 @@ class DatasetQualityMetric(Metric):
             "license": license_str,
         }
 
-        latency = int((time.time() - t0) * 1000)
+        latency = max(1, int((time.time() - t0) * 1000))
 
         return MetricResult(
             name=self.name,

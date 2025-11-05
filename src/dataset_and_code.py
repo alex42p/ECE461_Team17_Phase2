@@ -54,7 +54,7 @@ class DatasetAndCodeMetric(Metric):
         # split score 50/50
         score = 0.5 * (1.0 if dataset_present else 0.0) + 0.5 * (1.0 if code_present else 0.0)
 
-        latency = int((time.time() - t0) * 1000)
+        latency = max(1, int((time.time() - t0) * 1000))
 
         details: Dict[str, Any] = {
             "dataset_present": dataset_present,

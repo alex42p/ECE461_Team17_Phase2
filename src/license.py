@@ -65,7 +65,7 @@ class LicenseMetric(Metric):
         lic_norm = self._norm(raw_license)
 
         score = 1.0 if lic_norm in self.ALLOWED else 0.4 if lic_norm in self.PROBLEMATIC else 0.0
-        latency = int((time.time() - t0) * 1000)
+        latency = max(1, int((time.time() - t0) * 1000))
 
         return MetricResult(
             name=self.name,

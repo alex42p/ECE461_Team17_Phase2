@@ -33,7 +33,7 @@ class BusFactorMetric(Metric):
             name=self.name,
             value=score,
             details={"success" :True},
-            latency_ms=int((time.time() - t0) * 1000),
+            latency_ms=max(1, int((time.time() - t0) * 1000)),
         )
 
     def _eval_contributors(self, model_info: Dict[str, Any]) -> float:

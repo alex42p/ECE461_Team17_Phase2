@@ -47,7 +47,7 @@ class SizeScoreMetric(Metric):
             scores[device] = round(usage, 3) if usage <= 1.0 else 1.0
 
         # scores = validate_size_score_map(scores) # REDUNDANT USELESS FUCKING CODE
-        latency = int((time.time() - t0) * 1000)
+        latency = max(1, int((time.time() - t0) * 1000))
 
         return MetricResult(
             name=self.name,

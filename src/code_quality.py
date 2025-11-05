@@ -55,7 +55,7 @@ class CodeQualityMetric(Metric):
                     score += 0.5
                     break
 
-            latency = int((time.time() - t0) * 1000)
+            latency = max(1, int((time.time() - t0) * 1000))
             return MetricResult(
                 name=self.name,
                 value=score,
@@ -65,7 +65,7 @@ class CodeQualityMetric(Metric):
 
         except Exception as e:
             print(f"Error computing code quality for {model_id}: {e}")
-            latency = int((time.time() - t0) * 1000)
+            latency = max(1, int((time.time() - t0) * 1000))
             return MetricResult(
                 name=self.name,
                 value=0.0,

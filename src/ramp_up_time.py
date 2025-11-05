@@ -47,10 +47,10 @@ class RampUpTimeMetric(Metric):
                 name=self.name,
                 value=0.0,
                 details={"error": str(e)},
-                latency_ms=int((time.time() - t0) * 1000),
+                latency_ms=max(1, int((time.time() - t0) * 1000)),
             )
 
-        latency = int((time.time() - t0) * 1000)
+        latency = max(1, int((time.time() - t0) * 1000))
         return MetricResult(
             name=self.name,
             value=score,
