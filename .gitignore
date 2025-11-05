@@ -16,6 +16,8 @@ htmlcov/
 .DS_Store
 
 *.log
+# allow app.log to pass log_file tests
+!src/app.log 
 .cache/
 
 dist/
