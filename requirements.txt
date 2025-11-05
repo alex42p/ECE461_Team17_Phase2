@@ -2,6 +2,7 @@ requests
 huggingface-hub
 transformers
 GitPython
+python-dotenv
 pytest
 pytest-cov
 mypy
