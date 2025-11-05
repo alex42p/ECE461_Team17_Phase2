@@ -28,3 +28,7 @@ Group List (Name, GitHub User):
     - Dataset and Code
     - Code Quality (I think?)
     - Dataset Quality
+
+## Latest Addition
+
+Added a TODO.md file that hopefully outlines everything each of us needs to take care of
