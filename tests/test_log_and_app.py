@@ -1,25 +1,25 @@
-# import os
-# import stat
-# import logging
-# import json
-# import tempfile
+import os
+import stat
+import logging
+import json
+import tempfile
 
-# import pytest
+import pytest
 
-# from src import log as log_module
-# from src import app as app_module
-# from metric import MetricResult
+from src import log as log_module
+from src import app as app_module
+from metric import MetricResult
 
 
-# def test_setup_logging_fails_when_file_missing(monkeypatch, tmp_path):
-#     # Point LOG_FILE to a non-existent path
-#     missing = tmp_path / "no_such_dir" / "app.log"
-#     monkeypatch.setenv("LOG_FILE", str(missing))
-#     monkeypatch.setenv("LOG_LEVEL", "1")
+def test_setup_logging_fails_when_file_missing(monkeypatch, tmp_path):
+    # Point LOG_FILE to a non-existent path
+    missing = tmp_path / "no_such_dir" / "app.log"
+    monkeypatch.setenv("LOG_FILE", str(missing))
+    monkeypatch.setenv("LOG_LEVEL", "1")
 
-#     with pytest.raises(SystemExit) as exc:
-#         log_module.setup_logging()
-#     assert exc.value.code == 1
+    with pytest.raises(SystemExit) as exc:
+        log_module.setup_logging()
+    assert exc.value.code == 1
 
 
 # def test_setup_logging_fails_when_file_not_writable(monkeypatch, tmp_path):
