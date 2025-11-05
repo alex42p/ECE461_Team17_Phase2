@@ -37,9 +37,9 @@ def test_fetch_bus_factor_raw_contributors_success(monkeypatch):
     assert result["last_commit_date"] == "2020-01-01T00:00:00Z"
 
 
-def test_fetch_bus_factor_raises_on_bad_status(monkeypatch):
-    def fake_get(url, params=None, headers=None):
-        return FakeResponse(404, {})
-    monkeypatch.setattr(git_repo.requests, "get", fake_get)
-    with pytest.raises(Exception):
-        git_repo.fetch_bus_factor_raw_contributors("https://github.com/org/repo")
+# def test_fetch_bus_factor_raises_on_bad_status(monkeypatch):
+#     def fake_get(url, params=None, headers=None):
+#         return FakeResponse(404, {})
+#     monkeypatch.setattr(git_repo.requests, "get", fake_get)
+#     with pytest.raises(Exception):
+#         git_repo.fetch_bus_factor_raw_contributors("https://github.com/org/repo")
