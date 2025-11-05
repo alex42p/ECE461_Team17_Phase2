@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 from dotenv import load_dotenv
 load_dotenv()
@@ -8,8 +9,23 @@ def setup_logging() -> None:
     try:
         log_file = os.environ["LOG_FILE"]
         log_level_env = os.environ["LOG_LEVEL"]
+        # Resolve to absolute path so we can check existence and permissions.
+        full_path = os.path.abspath(log_file)
+        parent_dir = os.path.dirname(full_path) or os.getcwd()
+
+        if not os.path.isdir(parent_dir):
+            raise KeyError(f"LOG_FILE parent directory does not exist: {parent_dir}")
+
+        # Require that the log file already exists and is a regular file.
+        # Do NOT allow automatic creation of the file; exit if missing.
+        if not os.path.exists(full_path) or not os.path.isfile(full_path):
+            raise KeyError(f"LOG_FILE does not exist: {full_path}")
+
+        if not os.access(full_path, os.W_OK):
+            raise KeyError(f"LOG_FILE is not writable: {full_path}")
     except KeyError as e:
-        raise RuntimeError(f"A logging environment variable is not properly set, cannot setup logging.", e)
+        print(f"A logging environment variable is not properly set; cannot set up logging.", e)
+        sys.exit(1)
 
     try:
         log_level_num = int(log_level_env)
@@ -26,7 +42,7 @@ def setup_logging() -> None:
         log_level = logging.CRITICAL + 1
 
     logging.basicConfig(
-        filename=log_file,
+        filename=full_path,
         filemode="a",
         level=log_level,
         format="%(asctime)s [%(levelname)s] %(message)s",
