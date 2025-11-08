@@ -26,6 +26,9 @@ import dataset_and_code
 import bus_factor
 import performance_claims
 import size_score
+import reproducibility
+import reviewedness
+import tree_score
 
 app = Flask(__name__)
 
@@ -189,6 +192,14 @@ def run_scoring(url: str) -> dict[str, Any]:
         
         # Run all metrics
         metrics = [cls() for cls in Metric.__subclasses__()] # type: ignore
+
+        # Inject dependencies for new metrics
+        for metric in metrics:
+            if isinstance(metric, tree_score.TreeScoreMetric):
+                metric.storage = storage
+            elif isinstance(metric, reviewedness.ReviewednessMetric):
+                metric.github_token = GITHUB_TOKEN
+
         metric_results = compute_all_metrics(model.metadata, metrics, max_workers=4)
         
         # Convert to dict

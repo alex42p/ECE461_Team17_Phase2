@@ -25,7 +25,9 @@ import dataset_and_code
 import bus_factor
 import performance_claims
 import size_score
-
+import reproducibility
+import reviewedness
+import tree_score
 
 try:
     GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
@@ -82,7 +84,7 @@ def score(url_file: str) -> None:
         # print(model.metric_scores["size_score"])
 
     # Encode + print as NDJSON
-    NDJSONEncoder.print_records(models)
+    NDJSONEncoder.print_records(models, True)
     sys.exit(0)
 
 
