@@ -2,7 +2,7 @@ from entities import HFModel
 import requests 
 from typing import Any
 from urllib.parse import urlparse
-
+from cache import cached
 
 def extract_repo_id(url: str) -> str:
     """
@@ -35,7 +35,7 @@ def extract_dataset_id(url: str) -> str:
         return path_parts[1]  # top-level dataset
     return f"{path_parts[1]}/{path_parts[2]}"  # org/dataset
 
-
+# @cached("hf:model", "hf_model")
 def fetch_repo_metadata(model: HFModel) -> dict[str, Any]:
     """
     Fetch metadata for an HFModelURL instance via the Hugging Face API.

@@ -7,11 +7,6 @@ from urllib.parse import urlparse
 
 @dataclass
 class HFModel():
-    model_url: HFModelURL
-    repo_id: str
-    metadata: dict[str, Any]
-    metric_scores: dict[str, MetricResult]
-
     def __init__(self, model_url: HFModelURL):
         self.model_url = model_url
         self.repo_id = self.extract_repo_id()
