@@ -10,3 +10,4 @@ types-requests
 Flask
 redis
 boto3
+psycopg2
