@@ -9,3 +9,11 @@ mypy
 types-requests
 Flask
 redis
+bcrypt
+PyJWT
+SQLAlchemy
+psycopg2-binary
+boto3
+selenium
+python-dateutil
+structlog
