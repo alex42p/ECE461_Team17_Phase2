@@ -36,7 +36,7 @@ except KeyError:
 
 def install() -> None:
     """Implements ./run install"""
-    rc = subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "-q"]).returncode
+    rc = subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "-q", "--no-warn-script-location"]).returncode
     sys.exit(rc)
 
 def test() -> None:

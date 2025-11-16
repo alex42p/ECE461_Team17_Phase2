@@ -53,10 +53,10 @@ class TreeScoreMetric(Metric):
             
             if not parent_scores:
                 tree_score = 0.0
-                details = {"reason": "Could not fetch parent scores"}
+                details: Dict[str, Any] = {"reason": "Could not fetch parent scores"}
             else:
                 tree_score = sum(parent_scores) / len(parent_scores)
-                details = {
+                details: Dict[str, Any] = {
                     "num_parents": len(parents),
                     "evaluated_parents": len(parent_scores),
                     "parent_scores": parent_scores
