@@ -162,6 +162,9 @@ def create_user():
     try:
         data = request.get_json()
         
+        if not data:
+            return jsonify({"error": "Data not returned"}), 404
+
         username = data.get("username")
         password = data.get("password")
         role_str = data.get("role", "searcher")
@@ -200,6 +203,8 @@ def delete_user(username: str):
     """
     try:
         current_user_data = get_current_user()
+        if not current_user_data:
+            return jsonify({"error": "Authentication required"}), 401
         session = get_db()
         auth_service = AuthService(session)
         
