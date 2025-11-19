@@ -13,7 +13,14 @@ class NDJSONEncoder:
             "category": model.model_url.category,
         }
 
-        for r in model.metric_scores.values():
+        # When in phase one, exclude phase2-only metrics from the
+        # encoded output so they don't appear in the NDJSON lines.
+        metric_values = list(model.metric_scores.values())
+        if phase_one:
+            _phase_two_only = {"reproducibility", "reviewedness", "tree_score"}
+            metric_values = [r for r in metric_values if r.name not in _phase_two_only]
+
+        for r in metric_values:
             record[r.name] = r.value
             record[f"{r.name}_latency"] = r.latency_ms
 
@@ -47,14 +54,13 @@ class NDJSONEncoder:
             # Compute weighted score
             net_score = 0.0
             for metric, weight in weights.items():
-                # print("Metric:", metric, "; Score:", model.metric_scores[metric].value)
                 if metric in model.metric_scores and isinstance(model.metric_scores[metric].value, float):
                     net_score += model.metric_scores[metric].value * weight # type: ignore
 
             record["net_score"] = round(net_score, 2)
 
-            # Net score latency = maximum of submetric latencies
-            record["net_score_latency"] = max((r.latency_ms for r in model.metric_scores.values()), default=1) + 100
+            # Net score latency = maximum of included submetric latencies + some change
+            record["net_score_latency"] = max((r.latency_ms for r in metric_values), default=1) + 100
         return json.dumps(record)
 
     @staticmethod

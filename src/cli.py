@@ -84,7 +84,8 @@ def score(url_file: str) -> None:
         # print(model.metric_scores["size_score"])
 
     # Encode + print as NDJSON
-    NDJSONEncoder.print_records(models, True)
+    # NDJSONEncoder.print_records(models, True)   # exclude phase 2 metrics
+    NDJSONEncoder.print_records(models)       # include all metrics
     sys.exit(0)
 
 

@@ -27,7 +27,6 @@ class HFModel():
             return f"{parts[0]}/{parts[1]}"
         return path  # fallback
     
-    ## Helper function
     def extract_model_name(self) -> str:
         """Extract the short model name from the HF URL."""
         parts: list[str] = urlparse(self.model_url.url).path.strip("/").split("/")
