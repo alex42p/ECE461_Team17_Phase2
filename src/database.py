@@ -59,7 +59,7 @@ class Package(Base):
     artifact_type = Column(String(50), nullable=False, index=True)  # model, dataset, code
     url = Column(Text, nullable=True)
     scores = Column(JSON, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    # metadata = Column(JSON, nullable=True)
     is_sensitive = Column(Boolean, default=False, nullable=False)
     monitoring_script = Column(Text, nullable=True)  # JavaScript code for sensitive models
     uploader_username = Column(String(100), nullable=True)
@@ -75,7 +75,7 @@ class Package(Base):
             "artifact_type": self.artifact_type,
             "url": self.url,
             "scores": self.scores,
-            "metadata": self.metadata,
+            # "metadata": self.metadata,
             "is_sensitive": self.is_sensitive,
             "uploader_username": self.uploader_username,
             "created_at": self.created_at.isoformat(),
