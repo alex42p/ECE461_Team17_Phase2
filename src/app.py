@@ -86,6 +86,44 @@ def teardown_db(exception=None):
         session.close()
 
 # ============================================================================
+# ERROR HANDLERS
+# ============================================================================
+
+@app.errorhandler(401)
+def unauthorized(error):
+    """Handle 401 Unauthorized errors with user-friendly page."""
+    # Check if request accepts HTML (browser) or JSON (API)
+    if request.accept_mimetypes.accept_html and not request.accept_mimetypes.accept_json:
+        return render_template('error.html', 
+            error_code=401,
+            error_title="Authentication Required",
+            error_message="You must be logged in to access this page.",
+            detail="Please authenticate using valid credentials."
+        ), 401
+    # Return JSON for API requests
+    return jsonify({
+        "error": "Authentication required",
+        "message": str(error)
+    }), 401
+
+@app.errorhandler(403)
+def forbidden(error):
+    """Handle 403 Forbidden errors with user-friendly page."""
+    # Check if request accepts HTML (browser) or JSON (API)
+    if request.accept_mimetypes.accept_html and not request.accept_mimetypes.accept_json:
+        return render_template('error.html',
+            error_code=403,
+            error_title="Access Denied - Admin Only",
+            error_message="This resource is restricted to administrators only.",
+            detail="You do not have sufficient permissions to access this page."
+        ), 403
+    # Return JSON for API requests
+    return jsonify({
+        "error": "Forbidden",
+        "message": str(error)
+    }), 403
+
+# ============================================================================
 # AUTHENTICATION ENDPOINTS
 # ============================================================================
 
@@ -257,9 +295,10 @@ def list_users():
 # ============================================================================
 
 @app.route('/health', methods=['GET'])
+@require_admin()
 def health_check():
     """
-    Simple liveness check.
+    Simple liveness check (admin only).
     Returns 200 if service is alive.
     """
     return jsonify({
@@ -269,10 +308,10 @@ def health_check():
     }), 200
 
 @app.route('/health/components', methods=['GET'])
-@optional_auth()
+@require_admin()
 def health_components():
     """
-    Detailed component health check.
+    Detailed component health check (admin only).
     Returns health status of all system components.
     """
     try:
