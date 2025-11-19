@@ -57,6 +57,11 @@ GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 with app.app_context():
     init_db()
 
+@app.route('/')
+def home():
+    """Home page."""
+    return render_template('index.html')
+
 # Request/response hooks for health monitoring and database cleanup
 @app.before_request
 def before_request():
@@ -375,11 +380,6 @@ def get_audit_statistics():
 # ============================================================================
 # PACKAGE ENDPOINTS (with authentication and audit logging)
 # ============================================================================
-
-@app.route('/')
-def home():
-    """Home page."""
-    return render_template('index.html')
 
 @app.route('/package', methods=['POST'])
 @require_uploader()
