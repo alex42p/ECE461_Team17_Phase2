@@ -31,3 +31,6 @@ package_storage/
 __pycache__/
 
 src/package_storage/metadata/
+
+# Don't push databases
+*.db

@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 from typing import Any
 from flask import Flask, request, jsonify, render_template, g
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Import storage
 from storage import PackageStorage
@@ -61,7 +61,7 @@ with app.app_context():
 @app.before_request
 def before_request():
     """Set up request context."""
-    g.request_start_time = datetime.utcnow()
+    g.request_start_time = datetime.now(timezone.utc)
 
 @app.after_request
 def after_request(response):
@@ -73,7 +73,7 @@ def after_request(response):
     
     return response
 
-@app.teardown_appcontext
+@app.teardown_appcontext # type: ignore
 def teardown_db(exception=None):
     """Close database session at end of request."""
     session = g.pop('db_session', None)
@@ -259,7 +259,7 @@ def health_check():
     """
     return jsonify({
         "status": "ok",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "service": "ECE461 Package Registry"
     }), 200
 
@@ -283,7 +283,7 @@ def health_components():
         return jsonify({
             "status": "critical",
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }), 500
 
 # ============================================================================
@@ -703,4 +703,4 @@ if __name__ == '__main__':
     print("  DELETE /reset                 - Reset system (admin)")
     print("\nListening on http://127.0.0.1:8080")
     print("=" * 60)
-    app.run(host='127.0.0.1', port=8080, debug=False)
+    app.run(host='127.0.0.1', port=8080, debug=True)
