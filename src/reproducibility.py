@@ -9,6 +9,7 @@ import tempfile
 import shutil
 from pathlib import Path
 from typing import Any, Dict
+import logging
 from metric import Metric, MetricResult
 
 
@@ -25,6 +26,24 @@ class ReproducibilityMetric(Metric):
     def __init__(self):
         super().__init__()
         self.TIMEOUT_SECONDS = 120  # 2 minutes max
+        # Per-metric logger setup
+        self.logger = logging.getLogger(self.name)
+        self.logger.setLevel(logging.DEBUG)
+        try:
+            root_dir = Path(__file__).resolve().parents[1]
+        except Exception:
+            root_dir = Path('.')
+        logs_dir = root_dir / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_file = logs_dir / f"{self.name}.log"
+        # Avoid duplicate handlers when module is re-imported
+        if not any(isinstance(h, logging.FileHandler) and h.baseFilename == str(log_file) for h in self.logger.handlers):
+            fh = logging.FileHandler(str(log_file), mode='w')
+            fh.setLevel(logging.DEBUG)
+            fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+            fh.setFormatter(fmt)
+            self.logger.addHandler(fh)
+        self.logger.info("Initialized ReproducibilityMetric (timeout=%s)", self.TIMEOUT_SECONDS)
         
     @property
     def name(self) -> str:
@@ -32,6 +51,7 @@ class ReproducibilityMetric(Metric):
     
     def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         t0 = time.time()
+        self.logger.debug("compute called")
         
         try:
             # Extract demo code from README
@@ -39,6 +59,7 @@ class ReproducibilityMetric(Metric):
             demo_code = self._extract_demo_code(readme)
             
             if not demo_code:
+                self.logger.info("No demo code found in README")
                 return MetricResult(
                     name=self.name,
                     value=0.0,
@@ -48,10 +69,11 @@ class ReproducibilityMetric(Metric):
             
             # Attempt to run in isolated environment
             success, output = self._run_code_safely(demo_code)
-            
+            self.logger.debug("_run_code_safely returned success=%s output_len=%s", success, len(output) if output else 0)
             if success:
                 score = 1.0
                 reason = "Demo code executed successfully"
+                self.logger.info("Demo code executed successfully")
             else:
                 # Check if it's a simple import/syntax issue (could work with minor fixes)
                 if self._is_minor_issue(output):
@@ -73,6 +95,7 @@ class ReproducibilityMetric(Metric):
             )
             
         except Exception as e:
+            self.logger.exception("Unhandled exception in compute: %s", e)
             return MetricResult(
                 name=self.name,
                 value=0.0,
@@ -120,6 +143,7 @@ class ReproducibilityMetric(Metric):
             script_path.write_text(code)
             
             try:
+                self.logger.debug("Running demo script at %s", script_path)
                 # Run with strict resource limits
                 result = subprocess.run(
                     ["python3", str(script_path)],
@@ -130,16 +154,20 @@ class ReproducibilityMetric(Metric):
                     # Security: limit resources
                     env={"PYTHONPATH": "", "HOME": tmpdir}
                 )
-                
+
                 # Check for common success patterns
                 if result.returncode == 0:
+                    self.logger.info("Demo script returned 0 (success)")
                     return True, result.stdout
                 else:
+                    self.logger.warning("Demo script failed with returncode=%s", result.returncode)
                     return False, result.stderr or result.stdout
-                    
+
             except subprocess.TimeoutExpired:
+                self.logger.warning("Demo script timed out after %s seconds", self.TIMEOUT_SECONDS)
                 return False, "Execution timed out"
             except Exception as e:
+                self.logger.exception("Unexpected error while running demo script: %s", e)
                 return False, str(e)
     
     def _is_minor_issue(self, error_output: str) -> bool:
