@@ -15,11 +15,26 @@ from storage import PackageStorage
 
 # Import database and services
 from database import get_db, init_db, UserRole, AuditAction, db_manager
-from auth_service import AuthService
-from auth_middleware import (
-    require_auth, require_admin, require_uploader, require_downloader,
-    optional_auth, get_current_user, rate_limit
-)
+
+# Try to import Cognito auth, fallback to legacy auth if not configured
+try:
+    from cognito_auth import cognito_auth
+    from cognito_middleware import (
+        require_auth, require_admin, require_uploader, require_downloader,
+        optional_auth, get_current_user, rate_limit
+    )
+    USE_COGNITO = cognito_auth.enabled
+    print(f"✓ Cognito authentication: {'ENABLED' if USE_COGNITO else 'DISABLED (using legacy auth)'}")
+except Exception as e:
+    print(f"⚠️  Cognito not available: {e}")
+    print("   Using legacy authentication system")
+    USE_COGNITO = False
+    from auth_service import AuthService
+    from auth_middleware import (
+        require_auth, require_admin, require_uploader, require_downloader,
+        optional_auth, get_current_user, rate_limit
+    )
+
 from health_monitor import health_monitor
 from audit_service import AuditService
 
@@ -128,15 +143,15 @@ def forbidden(error):
 # ============================================================================
 
 @app.route('/authenticate', methods=['PUT'])
-@rate_limit(max_requests=10, window_seconds=60)  # Prevent brute force
 def authenticate():
     """
-    Authenticate user and generate JWT token.
+    Authenticate user and return access token.
+    Supports both Cognito and legacy auth.
     
     Request body:
     {
         "User": {
-            "name": "username",
+            "name": "username or email",
             "isAdmin": true
         },
         "Secret": {
@@ -164,27 +179,40 @@ def authenticate():
         if not username or not password:
             return jsonify({"error": "Username and password required"}), 400
         
-        # Authenticate
-        session = get_db()
-        auth_service = AuthService(session)
-        
-        result = auth_service.authenticate(username, password)
-        
-        if not result:
+        # Try Cognito if enabled, otherwise use legacy auth
+        if USE_COGNITO:
+            result = cognito_auth.authenticate(username, password)
             return jsonify({
-                "error": "Authentication failed",
-                "message": "Invalid username or password"
-            }), 401
-        
-        return jsonify({
-            "token": result["token"],
-            "user": {
-                "name": result["username"],
-                "role": result["role"]
-            },
-            "expires_at": result["expires_at"],
-            "max_api_calls": AuthService.MAX_API_CALLS_PER_TOKEN
-        }), 200
+                "token": result["access_token"],
+                "user": {
+                    "name": result["user"]["username"],
+                    "role": result["user"]["role"],
+                    "email": result["user"]["email"]
+                },
+                "expires_in": result["expires_in"],
+                "max_api_calls": 1000
+            }), 200
+        else:
+            # Legacy authentication
+            session = get_db()
+            auth_service = AuthService(session)
+            result = auth_service.authenticate(username, password)
+            
+            if not result:
+                return jsonify({
+                    "error": "Authentication failed",
+                    "message": "Invalid username or password"
+                }), 401
+            
+            return jsonify({
+                "token": result["token"],
+                "user": {
+                    "name": result["username"],
+                    "role": result["role"]
+                },
+                "expires_at": result["expires_at"],
+                "max_api_calls": 1000
+            }), 200
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -209,29 +237,44 @@ def create_user():
             return jsonify({"error": "Data not returned"}), 404
 
         username = data.get("username")
+        email = data.get("email", username)
         password = data.get("password")
         role_str = data.get("role", "searcher")
         
         if not username or not password:
             return jsonify({"error": "Username and password required"}), 400
         
-        try:
-            role = UserRole(role_str)
-        except ValueError:
+        if USE_COGNITO:
+            # Cognito user creation
+            valid_roles = ["admin", "uploader", "searcher", "downloader"]
+            if role_str not in valid_roles:
+                return jsonify({
+                    "error": f"Invalid role. Must be one of: {valid_roles}"
+                }), 400
+            
+            user = cognito_auth.create_user(username, email, password, role_str)
             return jsonify({
-                "error": f"Invalid role. Must be one of: {[r.value for r in UserRole]}"
-            }), 400
-        
-        session = get_db()
-        auth_service = AuthService(session)
-        
-        user = auth_service.create_user(username, password, role)
-        session.commit()
-        
-        return jsonify({
-            "success": True,
-            "user": user.to_dict()
-        }), 201
+                "success": True,
+                "user": user
+            }), 201
+        else:
+            # Legacy user creation
+            try:
+                role = UserRole(role_str)
+            except ValueError:
+                return jsonify({
+                    "error": f"Invalid role. Must be one of: {[r.value for r in UserRole]}"
+                }), 400
+            
+            session = get_db()
+            auth_service = AuthService(session)
+            user = auth_service.create_user(username, password, role)
+            session.commit()
+            
+            return jsonify({
+                "success": True,
+                "user": user.to_dict()
+            }), 201
         
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -239,35 +282,43 @@ def create_user():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/users/<username>', methods=['DELETE'])
-@require_auth()
+@require_admin()
 def delete_user(username: str):
     """
-    Delete a user (self-deletion or admin).
+    Delete a user (admin only).
     """
     try:
-        current_user_data = get_current_user()
-        if not current_user_data:
-            return jsonify({"error": "Authentication required"}), 401
-        session = get_db()
-        auth_service = AuthService(session)
-        
-        # Get requesting user
-        from database import User
-        requesting_user = session.query(User).filter_by(
-            username=current_user_data["username"]
-        ).first()
-        
-        if not requesting_user:
-            return jsonify({"error": "User not found"}), 404
-        
-        success = auth_service.delete_user(username, requesting_user)
-        
-        if success:
-            session.commit()
-            return jsonify({"success": True, "message": f"User {username} deleted"}), 200
+        if USE_COGNITO:
+            # Delete user from Cognito
+            cognito_auth.delete_user(username)
         else:
-            return jsonify({"error": "Insufficient permissions"}), 403
+            # Legacy delete
+            current_user_data = get_current_user()
+            if not current_user_data:
+                return jsonify({"error": "Authentication required"}), 401
+            
+            session = get_db()
+            auth_service = AuthService(session)
+            
+            from database import User
+            requesting_user = session.query(User).filter_by(
+                username=current_user_data["username"]
+            ).first()
+            
+            if not requesting_user:
+                return jsonify({"error": "User not found"}), 404
+            
+            success = auth_service.delete_user(username, requesting_user)
+            
+            if not success:
+                return jsonify({"error": "Insufficient permissions"}), 403
+            
+            session.commit()
         
+        return jsonify({"success": True, "message": f"User {username} deleted"}), 200
+        
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -276,10 +327,14 @@ def delete_user(username: str):
 def list_users():
     """List all users (admin only)."""
     try:
-        session = get_db()
-        auth_service = AuthService(session)
-        
-        users = auth_service.list_users()
+        if USE_COGNITO:
+            # Get users from Cognito
+            users = cognito_auth.list_users()
+        else:
+            # Legacy list users
+            session = get_db()
+            auth_service = AuthService(session)
+            users = auth_service.list_users()
         
         return jsonify({
             "success": True,

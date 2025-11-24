@@ -9,12 +9,11 @@ mypy
 types-requests
 Flask
 redis
-bcrypt
-PyJWT
 SQLAlchemy
 psycopg2-binary
 psycopg2
 boto3
+botocore
 selenium
 python-dateutil
 structlog

@@ -203,7 +203,7 @@ def init_db():
         if not existing_admin:
             admin_user = auth_service.create_user(
                 username="admin",
-                password="admin123!",  # Change this in production!
+                password="Admin123!",
                 role=UserRole.ADMIN
             )
             print(f"Created default admin user: {admin_user.username}")

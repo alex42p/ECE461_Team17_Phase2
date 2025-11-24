@@ -325,7 +325,7 @@ async function loadHealthStatus() {
     const statusContainer = document.getElementById('health-status');
 
     try {
-        const response = await fetch('/health/components');
+        const response = await apiRequest('/health/components');
         const data = await response.json();
 
         if (response.ok) {
