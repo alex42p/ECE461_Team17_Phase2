@@ -13,10 +13,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(override=True) 
 
-try:
-    GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
-except KeyError:
-    raise RuntimeError("GITHUB_TOKEN variable is missing, and you kinda need that.")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 class ReviewednessMetric(Metric):
     """

@@ -125,8 +125,6 @@ class TreeScoreMetric(Metric):
         if not config_file:
             return parents
         
-        # For MVP, check if parent model is mentioned in README or metadata
-        # In production, you'd download and parse config.json
         readme = hf_metadata.get("readme_text", "")
         
         # Look for common parent model patterns

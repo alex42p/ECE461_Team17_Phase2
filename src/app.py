@@ -6,6 +6,7 @@ This is the main application file with all security and observability features.
 import os
 import subprocess
 import tempfile
+import shutil
 from typing import Any
 from flask import Flask, request, jsonify, render_template, g
 from datetime import datetime, timezone
@@ -14,7 +15,7 @@ from datetime import datetime, timezone
 from storage import PackageStorage
 
 # Import database and services
-from database import get_db, init_db, UserRole, AuditAction, db_manager
+from database import get_db, init_db, UserRole, AuditAction, db_manager, User
 
 # Try to import Cognito auth, fallback to legacy auth if not configured
 try:
@@ -300,7 +301,6 @@ def delete_user(username: str):
             session = get_db()
             auth_service = AuthService(session)
             
-            from database import User
             requesting_user = session.query(User).filter_by(
                 username=current_user_data["username"]
             ).first()
@@ -612,7 +612,6 @@ def reset_system():
         init_db()
         
         # Clear package storage
-        import shutil
         storage_path = storage.metadata_dir
         if storage_path.exists():
             shutil.rmtree(storage_path)

@@ -1,3 +1,4 @@
+import importlib
 import pytest
 from src.reviewedness import ReviewednessMetric
 
@@ -51,3 +52,19 @@ def test_compute_with_pr_stats(monkeypatch):
     assert result.details["pr_commits"] == 80
     assert result.details["total_commits"] == 100
     assert result.details["review_percentage"] == 80.0
+
+def test_reviewedness_requires_token(monkeypatch):
+    # Ensure GITHUB_TOKEN is set before importing module
+    monkeypatch.setenv('GITHUB_TOKEN', 'fake-token')
+    mod = importlib.import_module('src.reviewedness')
+    MetricClass = getattr(mod, 'ReviewednessMetric')
+    m = MetricClass()
+
+    # If no repo metadata, compute should return -1
+    res = m.compute({'hf_metadata': {}})
+    assert res.value == -1.0
+    assert 'No linked GitHub repository' in res.details['reason']
+
+    # Test URL parser
+    owner, repo = m._parse_github_url('https://github.com/owner/repo')
+    assert owner == 'owner' and repo == 'repo'
