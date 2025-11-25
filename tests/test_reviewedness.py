@@ -3,10 +3,8 @@ from src.reviewedness import ReviewednessMetric
 
 
 def test_reviewedness_metric_init():
-    metric = ReviewednessMetric(github_token="fake_token")
+    metric = ReviewednessMetric()
     assert metric.name == "reviewedness"
-    assert metric.github_token == "fake_token"
-
 
 def test_parse_github_url():
     metric = ReviewednessMetric()
@@ -21,7 +19,7 @@ def test_parse_github_url():
 
 
 def test_compute_no_repo():
-    metric = ReviewednessMetric(github_token="fake")
+    metric = ReviewednessMetric()
     
     metadata = {
         "repo_metadata": {}
@@ -34,7 +32,7 @@ def test_compute_no_repo():
 
 def test_compute_with_pr_stats(monkeypatch):
     """Test with mocked GitHub API response."""
-    metric = ReviewednessMetric(github_token="fake")
+    metric = ReviewednessMetric()
     
     # Mock PR stats
     def mock_fetch_pr_stats(owner, repo):

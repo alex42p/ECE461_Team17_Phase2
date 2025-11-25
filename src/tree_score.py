@@ -5,6 +5,8 @@ TreeScore metric - average quality score of parent models in lineage graph.
 import time
 from typing import Any, Dict, Set, Optional
 from metric import Metric, MetricResult
+import logging
+from pathlib import Path
 
 
 class TreeScoreMetric(Metric):
@@ -17,6 +19,23 @@ class TreeScoreMetric(Metric):
         super().__init__()
         self.storage = storage  # Injected by app.py
         self._visited: Set[str] = set()  # Prevent circular dependencies
+        # Per-metric logger setup
+        self.logger = logging.getLogger(self.name)
+        self.logger.setLevel(logging.DEBUG)
+        try:
+            root_dir = Path(__file__).resolve().parents[1]
+        except Exception:
+            root_dir = Path('.')
+        logs_dir = root_dir / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_file = logs_dir / f"{self.name}.log"
+        if not any(isinstance(h, logging.FileHandler) and h.baseFilename == str(log_file) for h in self.logger.handlers):
+            fh = logging.FileHandler(str(log_file), mode='w')
+            fh.setLevel(logging.DEBUG)
+            fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+            fh.setFormatter(fmt)
+            self.logger.addHandler(fh)
+        self.logger.info("Initialized TreeScoreMetric (storage_present=%s)", bool(self.storage))
     
     @property
     def name(self) -> str:
@@ -24,6 +43,7 @@ class TreeScoreMetric(Metric):
     
     def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         t0 = time.time()
+        self.logger.debug("compute called")
         
         try:
             # Get current model's artifact_id (if available)
@@ -33,6 +53,7 @@ class TreeScoreMetric(Metric):
             parents = self._extract_parent_models(metadata)
             
             if not parents:
+                self.logger.info("No parent models found in metadata/config")
                 return MetricResult(
                     name=self.name,
                     value=0.0,
@@ -61,6 +82,7 @@ class TreeScoreMetric(Metric):
                     "evaluated_parents": len(parent_scores),
                     "parent_scores": parent_scores
                 }
+                self.logger.info("Computed tree_score=%s from %s evaluated parents", tree_score, len(parent_scores))
             
             return MetricResult(
                 name=self.name,
@@ -70,6 +92,7 @@ class TreeScoreMetric(Metric):
             )
             
         except Exception as e:
+            self.logger.exception("Unhandled exception in compute: %s", e)
             return MetricResult(
                 name=self.name,
                 value=0.0,
@@ -153,8 +176,9 @@ class TreeScoreMetric(Metric):
             # Get most recent version
             parent = parent_packages[0]
             net_score = parent.get("scores", {}).get("net_score", {}).get("value")
-            
+            self.logger.debug("Fetched parent %s net_score=%s", parent_id, net_score)
             return float(net_score) if net_score is not None else None
             
         except Exception:
+            self.logger.exception("Error fetching parent score for %s", parent_id)
             return None

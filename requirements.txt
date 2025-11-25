@@ -1,6 +1,4 @@
 requests
-huggingface-hub
-transformers
 GitPython
 python-dotenv
 pytest
@@ -8,7 +6,8 @@ pytest-cov
 mypy
 types-requests
 Flask
-redis
+bcrypt
+PyJWT
 SQLAlchemy
 psycopg2-binary
 psycopg2
@@ -17,3 +16,5 @@ botocore
 selenium
 python-dateutil
 structlog
+transformers[torch] # takes ~2GB of space
+datasets

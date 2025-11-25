@@ -3,11 +3,20 @@ Reviewedness metric - percentage of code introduced via reviewed PRs.
 Uses GitHub GraphQL API for efficient querying.
 """
 
+import os
 import time
 import requests
 from typing import Any, Dict, Optional
 from metric import Metric, MetricResult
+import logging
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(override=True) 
 
+try:
+    GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
+except KeyError:
+    raise RuntimeError("GITHUB_TOKEN variable is missing, and you kinda need that.")
 
 class ReviewednessMetric(Metric):
     """
@@ -15,9 +24,25 @@ class ReviewednessMetric(Metric):
     Returns -1 if no linked GitHub repository.
     """
     
-    def __init__(self, github_token: Optional[str] = None):
+    def __init__(self):
         super().__init__()
-        self.github_token = github_token
+        self.github_token = GITHUB_TOKEN
+        self.logger = logging.getLogger(self.name)
+        self.logger.setLevel(logging.DEBUG)
+        try:
+            root_dir = Path(__file__).resolve().parents[1]
+        except Exception:
+            root_dir = Path('.')
+        logs_dir = root_dir / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_file = logs_dir / f"{self.name}.log"
+        if not any(isinstance(h, logging.FileHandler) and h.baseFilename == str(log_file) for h in self.logger.handlers):
+            fh = logging.FileHandler(str(log_file), mode='w')
+            fh.setLevel(logging.DEBUG)
+            fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+            fh.setFormatter(fmt)
+            self.logger.addHandler(fh)
+        self.logger.info("Initialized ReviewednessMetric (github_token_present=%s)", bool(self.github_token))
     
     @property
     def name(self) -> str:
@@ -25,11 +50,13 @@ class ReviewednessMetric(Metric):
     
     def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         t0 = time.time()
+        self.logger.debug("compute called")
         
         try:
             # Get GitHub repo URL
             repo_url = metadata.get("repo_metadata", {}).get("repo_url")
             if not repo_url:
+                self.logger.info("No linked GitHub repository found in metadata")
                 return MetricResult(
                     name=self.name,
                     value=-1.0,
@@ -53,7 +80,8 @@ class ReviewednessMetric(Metric):
                     "total_commits": total_commits,
                     "review_percentage": round(score * 100, 1)
                 }
-            
+
+            self.logger.info("Reviewedness computed: %s", details)
             return MetricResult(
                 name=self.name,
                 value=round(score, 3),
@@ -62,6 +90,7 @@ class ReviewednessMetric(Metric):
             )
             
         except Exception as e:
+            self.logger.exception("Unhandled exception in compute: %s", e)
             return MetricResult(
                 name=self.name,
                 value=0.0,
@@ -137,6 +166,7 @@ class ReviewednessMetric(Metric):
             )
             
             if response.status_code != 200:
+                self.logger.error("GraphQL query failed: status=%s", response.status_code)
                 raise Exception(f"GraphQL query failed: {response.status_code}")
             
             data = response.json()
