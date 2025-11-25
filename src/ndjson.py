@@ -38,15 +38,15 @@ class NDJSONEncoder:
                 }
             else:
                 weights: Dict[str, float] = {
-                    "ramp_up_time": 0.15,           # Reduced from 0.20
-                    "license": 0.12,                # Reduced from 0.15
+                    "ramp_up_time": 0.20,           # Same
+                    "license": 0.15,                # Same
                     "dataset_and_code_score": 0.10, # Same
-                    "performance_claims": 0.08,     # Reduced from 0.10
-                    "bus_factor": 0.10,             # Same
+                    "performance_claims": 0.10,     # Same
+                    "bus_factor": 0.07,             # Reduced from 0.10
                     "code_quality": 0.12,           # Reduced from 0.15
                     "dataset_quality": 0.12,        # Reduced from 0.15
                     "size_score": 0.05,             # Same
-                    "reproducibility": 0.10,        # NEW
+                    "reproducibility": 0.03,        # NEW
                     "reviewedness": 0.03,           # NEW
                     "tree_score": 0.03,             # NEW
                 }

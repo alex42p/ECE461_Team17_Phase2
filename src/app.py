@@ -737,7 +737,7 @@ def run_scoring(url: str) -> dict[str, Any]:
             elif isinstance(metric, reviewedness.ReviewednessMetric):
                 metric.github_token = GITHUB_TOKEN
 
-        metric_results = compute_all_metrics(model.metadata, metrics, max_workers=4)
+        metric_results = compute_all_metrics(model.metadata, metrics, max_workers=8)
         
         # Convert to dict
         scores = {}
@@ -749,14 +749,17 @@ def run_scoring(url: str) -> dict[str, Any]:
         
         # Calculate net score
         weights = {
-            "ramp_up_time": 0.20,
-            "license": 0.15,
-            "dataset_and_code_score": 0.10,
-            "performance_claims": 0.10,
-            "bus_factor": 0.10,
-            "code_quality": 0.15,
-            "dataset_quality": 0.15,
-            "size_score": 0.05
+            "ramp_up_time": 0.20,           # Same
+            "license": 0.15,                # Same
+            "dataset_and_code_score": 0.10, # Same
+            "performance_claims": 0.10,     # Same
+            "bus_factor": 0.07,             # Reduced from 0.10
+            "code_quality": 0.12,           # Reduced from 0.15
+            "dataset_quality": 0.12,        # Reduced from 0.15
+            "size_score": 0.05,             # Same
+            "reproducibility": 0.03,        # NEW
+            "reviewedness": 0.03,           # NEW
+            "tree_score": 0.03,             # NEW
         }
         
         net_score = 0.0
