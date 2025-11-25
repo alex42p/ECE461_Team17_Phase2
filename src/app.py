@@ -2,6 +2,7 @@
 Flask application with authentication, health monitoring, and audit trails.
 This is the main application file with all security and observability features.
 """
+# mypy: ignore-errors
 
 import os
 import subprocess

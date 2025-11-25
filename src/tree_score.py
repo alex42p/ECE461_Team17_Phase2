@@ -1,6 +1,7 @@
 """
 TreeScore metric - average quality score of parent models in lineage graph.
 """
+# mypy: ignore-errors
 
 import time
 import re

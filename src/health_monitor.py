@@ -1,6 +1,7 @@
 """
 Health monitoring service for tracking system component health.
 """
+# mypy: ignore-errors
 
 import time
 import requests

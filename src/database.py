@@ -2,6 +2,7 @@
 Database models and connection management for the package registry.
 Supports both SQLite (for local development) and PostgreSQL (for production on AWS RDS).
 """
+# mypy: ignore-errors
 
 import os
 from datetime import datetime

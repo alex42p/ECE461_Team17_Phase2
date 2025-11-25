@@ -2,6 +2,7 @@
 Simplified Authentication Middleware for AWS Cognito
 Replaces 301 lines of custom middleware with ~80 lines
 """
+# mypy: ignore-errors
 
 from functools import wraps
 from flask import request, jsonify

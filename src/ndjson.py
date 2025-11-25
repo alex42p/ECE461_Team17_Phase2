@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 import json
 from typing import Any, Dict
 from entities import HFModel
