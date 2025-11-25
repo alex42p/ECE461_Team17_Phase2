@@ -124,7 +124,6 @@ def score(url_file: str) -> None:
 
         model.add_results(metric_results)
         models.append(model)
-        # print(model.metric_scores["size_score"])
 
     # Encode + print as NDJSON
     # NDJSONEncoder.print_records(models, True)   # exclude phase 2 metrics
