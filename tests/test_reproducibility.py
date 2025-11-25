@@ -23,13 +23,13 @@ def test_extract_demo_code():
     More text here.
     """
     code = metric._extract_demo_code(readme)
-    assert "AutoModel" in code
-    assert "from_pretrained" in code
+    assert any("AutoModel" in codeblock for codeblock in code)
+    assert any("from_pretrained" in codeblock for codeblock in code)
     
     # Test with no code block
     readme_no_code = "# Model\n\nThis is text only."
     code = metric._extract_demo_code(readme_no_code)
-    assert code == ""
+    assert code == []
 
 
 # def test_is_minor_issue():
