@@ -23,9 +23,11 @@ class PackageStorage:
     def generate_package_id(self, name: str, version: str) -> str:
         """Generate unique package ID."""
         # Format: name-version-hash
-        unique_str = f"{name}-{version}-{datetime.utcnow().isoformat()}"
+        # sanitize name to avoid path separators in filenames
+        safe_name = name.replace('/', '_').replace('\\', '_')
+        unique_str = f"{safe_name}-{version}-{datetime.utcnow().isoformat()}"
         hash_suffix = hashlib.md5(unique_str.encode()).hexdigest()[:8]
-        return f"{name}-{version}-{hash_suffix}"
+        return f"{safe_name}-{version}-{hash_suffix}"
     
     def save_package(
         self, 

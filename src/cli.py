@@ -13,6 +13,7 @@ from metric import Metric
 from concurrency import compute_all_metrics
 from huggingface import fetch_repo_metadata
 from git_repo import fetch_bus_factor_raw_contributors
+from storage import PackageStorage
 # Import concrete metric modules so their classes are registered as subclasses of Metric. 
 # Metric.__subclasses__() only returns classes that have been imported/loaded, 
 # so we must import these modules before constructing the metrics list below.
@@ -74,11 +75,51 @@ def score(url_file: str) -> None:
 
         model.metadata =  {"hf_metadata" : hf_metadata, "repo_metadata" : repo_metadata, "nof_code_ds" : nof_code_ds}
 
+        # Initialize storage and construct metrics
+        storage = PackageStorage()
         metrics = [cls() for cls in Metric.__subclasses__()] # type: ignore
+
+        # Inject dependencies for metrics that need them (backwards compatible)
+        for metric in metrics:
+            if isinstance(metric, tree_score.TreeScoreMetric):
+                metric.storage = storage
+            elif isinstance(metric, reviewedness.ReviewednessMetric):
+                metric.github_token = GITHUB_TOKEN
         metric_results = compute_all_metrics(model.metadata, metrics, max_workers=8)
+        # Convert metric results to a simple scores dict (like app.run_scoring)
+        scores = {}
+        for result in metric_results:
+            scores[result.name] = {"value": result.value, "latency_ms": result.latency_ms}
+
+        # Calculate net score using same weights as app.py
+        weights = {
+            "ramp_up_time": 0.20,
+            "license": 0.15,
+            "dataset_and_code_score": 0.10,
+            "performance_claims": 0.10,
+            "bus_factor": 0.10,
+            "code_quality": 0.15,
+            "dataset_quality": 0.15,
+            "size_score": 0.05
+        }
+        net_score = 0.0
+        for metric_name, weight in weights.items():
+            if metric_name in scores:
+                score_val = scores[metric_name].get("value", 0)
+                if isinstance(score_val, (int, float)):
+                    net_score += score_val * weight
+
+        scores["net_score"] = {"value": round(net_score, 2)}
+
+        # Save package into storage so future tree_score lookups can find this model
+        try:
+            pkg_name = model.repo_id or model.name or model.model_url.url
+            storage.save_package(name=pkg_name, version="1.0", url=model.model_url.url, scores=scores)
+        except Exception:
+            # non-fatal; continue scoring other models
+            pass
 
         model.add_results(metric_results)
-        # print(model.metric_scores)
         models.append(model)
         # print(model.metric_scores["size_score"])
 
