@@ -4,6 +4,7 @@ Simplified authentication using AWS Cognito User Pools
 Replaces 450+ lines of custom auth code with ~200 lines
 """
 # mypy: ignore-errors
+# pyright: reportOptionalMemberAccess=false
 
 import os
 import boto3
@@ -119,7 +120,7 @@ class CognitoAuthService:
         """Create a new user in Cognito (admin only)."""
         try:
             # Create user (without custom:role for now - attribute not in schema)
-            response = self.client.admin_create_user(
+            response = self.client.admin_create_user( 
                 UserPoolId=self.user_pool_id,
                 Username=email,
                 UserAttributes=[

@@ -42,8 +42,8 @@ def setup_logging() -> None:
         log_level = logging.CRITICAL + 1
 
     logging.basicConfig(
-        filename=full_path,
-        filemode="a",
+        filename="logs/app.log",
+        filemode="w",
         level=log_level,
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
