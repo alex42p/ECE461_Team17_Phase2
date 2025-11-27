@@ -13,7 +13,7 @@ from metric import Metric
 from concurrency import compute_all_metrics
 from huggingface import fetch_repo_metadata
 from git_repo import fetch_bus_factor_raw_contributors
-from storage import PackageStorage
+from storage import S3Storage
 # Import concrete metric modules so their classes are registered as subclasses of Metric. 
 # Metric.__subclasses__() only returns classes that have been imported/loaded, 
 # so we must import these modules before constructing the metrics list below.
@@ -76,7 +76,7 @@ def score(url_file: str) -> None:
         model.metadata =  {"hf_metadata" : hf_metadata, "repo_metadata" : repo_metadata, "nof_code_ds" : nof_code_ds}
 
         # Initialize storage and construct metrics
-        storage = PackageStorage()
+        storage = S3Storage()
         metrics = [cls() for cls in Metric.__subclasses__()] # type: ignore
 
         # Inject dependencies for metrics that need them (backwards compatible)

@@ -14,7 +14,7 @@ from flask import Flask, request, jsonify, render_template, g
 from datetime import datetime, timezone
 
 # Import storage
-from storage import PackageStorage
+from storage import S3Storage
 
 # Import database and services
 from database import get_db, init_db, UserRole, AuditAction, db_manager, User
@@ -92,7 +92,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # Initialize storage
-storage = PackageStorage()
+storage = S3Storage()
 
 # Get GitHub token
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
@@ -729,10 +729,12 @@ def reset_system():
         init_db()
 
         # Clear package storage
-        storage_path = storage.metadata_dir
-        if storage_path.exists():
-            shutil.rmtree(storage_path)
-            storage_path.mkdir(parents=True)
+        # storage_path = storage.metadata_dir
+        # if storage_path.exists():
+        #     shutil.rmtree(storage_path)
+        #     storage_path.mkdir(parents=True)
+
+        # TODO: update this to call method to iteratively/recursively delete all objects in S3 bucket
 
         logger.info('System reset completed')
         return jsonify({

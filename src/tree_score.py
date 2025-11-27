@@ -9,7 +9,7 @@ from typing import Any, Dict, Set, Optional
 from metric import Metric, MetricResult
 import logging
 from pathlib import Path
-
+from storage import S3Storage
 
 class TreeScoreMetric(Metric):
     """
@@ -17,9 +17,9 @@ class TreeScoreMetric(Metric):
     Uses lineage information from config.json.
     """
     
-    def __init__(self, storage=None):
+    def __init__(self):
         super().__init__()
-        self.storage = storage  # Injected by app.py
+        self.storage = S3Storage() or None
         self._visited: Set[str] = set()  # Prevent circular dependencies
         # Per-metric logger setup
         self.logger = logging.getLogger(self.name)

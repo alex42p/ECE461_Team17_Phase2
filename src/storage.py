@@ -3,21 +3,30 @@ Simple storage system for MVP.
 Stores package metadata in JSON files.
 """
 
+import os
 import json
 import hashlib
+import boto3
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-class PackageStorage:
+class S3Storage:
     """Simple file-based storage for packages."""
     
     def __init__(self, storage_dir: str = "package_storage"):
         """Initialize storage directory."""
-        self.__name__ = "PackageStorage"
+        self.__name__ = "S3Storage"
         self.storage_dir = Path(storage_dir)
         self.metadata_dir = self.storage_dir / "metadata"
+        self.s3_client = boto3.client(
+            's3', 
+            aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+            region_name=os.environ.get('AWS_REGION')
+        )
+        self.bucket_name = os.environ.get('S3_BUCKET_NAME', 'team-17-model-storage')
         
         # Create directories if they don't exist
         self.metadata_dir.mkdir(parents=True, exist_ok=True)
@@ -60,7 +69,8 @@ class PackageStorage:
         name: str,
         version: str,
         url: Optional[str] = None,
-        scores: Optional[Dict[str, Any]] = None
+        scores: Optional[Dict[str, Any]] = None,
+        file_path: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Save a package with metadata.
@@ -97,6 +107,22 @@ class PackageStorage:
             "scores": scores or {},
             "created_at": datetime.now(timezone.utc).isoformat()
         }
+        # If a file_path is provided, upload the file to S3 and update metadata
+        if file_path:
+            try:
+                # Use a namespaced key to avoid collisions
+                base_name = os.path.basename(file_path)
+                s3_key = f"packages/{package_id}/{base_name}"
+                s3_uri = self.upload_file_to_s3(file_path, s3_key)
+                # add s3 metadata and update URL to point to S3 URI
+                package_data.setdefault('s3', {})
+                package_data['s3']['bucket'] = self.bucket_name
+                package_data['s3']['key'] = s3_key
+                package_data['s3']['uri'] = s3_uri
+                package_data['url'] = s3_uri
+            except Exception:
+                # Log and continue — metadata will still be saved locally
+                self.logger.exception("save_package: failed to upload file %s to S3", file_path)
         
         # Save metadata
         metadata_file = self.metadata_dir / f"{package_id}.json"
@@ -108,6 +134,27 @@ class PackageStorage:
             self.logger.exception("save_package: failed to write metadata %s: %s", metadata_file.name, e)
 
         return package_data
+
+    def upload_file_to_s3(self, file_path: str, s3_key: str) -> str:
+        """
+        Upload a local file to S3 and return the S3 URI (s3://bucket/key).
+        """
+        if not self.bucket_name:
+            raise ValueError("S3 bucket name is not configured (S3_BUCKET_NAME).")
+
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        try:
+            self.logger.debug("upload_file_to_s3: uploading %s to %s/%s", file_path, self.bucket_name, s3_key)
+            # boto3 will stream from disk; this requires valid AWS credentials and permissions
+            self.s3_client.upload_file(str(file_path), self.bucket_name, s3_key)
+            s3_uri = f"s3://{self.bucket_name}/{s3_key}"
+            self.logger.info("upload_file_to_s3: uploaded to %s", s3_uri)
+            return s3_uri
+        except Exception as e:
+            self.logger.exception("upload_file_to_s3: failed to upload %s to s3://%s/%s: %s", file_path, self.bucket_name, s3_key, e)
+            raise
     
     def get_package(self, package_id: str) -> Optional[Dict[str, Any]]:
         """
