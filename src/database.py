@@ -202,7 +202,7 @@ def init_db():
         existing_admin = session.query(User).filter_by(username="admin").first()
         
         if not existing_admin:
-            admin_user = auth_service.create_user(
+            admin_user = auth_service.create_user( # type: ignore
                 username="admin",
                 password="Admin123!",
                 role=UserRole.ADMIN
