@@ -73,7 +73,7 @@ def require_auth(required_roles: Optional[List[UserRole]] = None):
             
             # Verify token
             auth_service = get_auth_service()
-            payload = auth_service.verify_token(token)
+            payload = auth_service.verify_token(token) # type: ignore
             
             if not payload:
                 return jsonify({

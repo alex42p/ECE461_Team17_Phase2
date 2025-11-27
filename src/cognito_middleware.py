@@ -3,10 +3,11 @@ Simplified Authentication Middleware for AWS Cognito
 Replaces 301 lines of custom middleware with ~80 lines
 """
 # mypy: ignore-errors
+# pyright: reportAttributeAccessIssue=false
 
 from functools import wraps
 from flask import request, jsonify
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 from cognito_auth import cognito_auth
 
 def get_token_from_request() -> Optional[str]:
@@ -21,7 +22,7 @@ def get_token_from_request() -> Optional[str]:
     
     return parts[1]
 
-def require_auth(required_roles: list = None):
+def require_auth(required_roles: Optional[List] = None):
     """
     Decorator to require authentication and optionally specific roles.
     
