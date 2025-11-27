@@ -155,8 +155,8 @@ def teardown_db(exception=None):
 def unauthorized(error):
     """Handle 401 Unauthorized errors with user-friendly page."""
     # Check if request accepts HTML (browser) or JSON (API)
-    logger.warning('Unauthorized access attempt: %s %s - %s', request.method, request.path, str(error))
-    if request.accept_mimetypes.accept_html and not request.accept_mimetypes.accept_json:
+    logger.warning('Unauthorized access attempt: %s %s - %s', getattr(request, 'method', '<no-method>'), getattr(request, 'path', getattr(request, 'full_path', '<no-path>')), str(error))
+    if getattr(request, 'accept_mimetypes', None) and request.accept_mimetypes.accept_html and not request.accept_mimetypes.accept_json:
         return render_template('error.html', 
             error_code=401,
             error_title="Authentication Required",
@@ -174,8 +174,8 @@ def unauthorized(error):
 def forbidden(error):
     """Handle 403 Forbidden errors with user-friendly page."""
     # Check if request accepts HTML (browser) or JSON (API)
-    logger.warning('Forbidden access attempt: %s %s - %s', request.method, request.path, str(error))
-    if request.accept_mimetypes.accept_html and not request.accept_mimetypes.accept_json:
+    logger.warning('Forbidden access attempt: %s %s - %s', getattr(request, 'method', '<no-method>'), getattr(request, 'path', getattr(request, 'full_path', '<no-path>')), str(error))
+    if getattr(request, 'accept_mimetypes', None) and request.accept_mimetypes.accept_html and not request.accept_mimetypes.accept_json:
         return render_template('error.html',
             error_code=403,
             error_title="Access Denied - Admin Only",

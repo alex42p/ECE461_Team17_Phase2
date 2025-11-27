@@ -8,8 +8,8 @@ import os
 from datetime import datetime
 from typing import Optional, List
 from sqlalchemy import create_engine, Column, String, Integer, DateTime, Boolean, JSON, Float, Text, Enum as SQLEnum
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+# from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session, declarative_base
 import enum
 
 # Base class for all models
