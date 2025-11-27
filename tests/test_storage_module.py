@@ -4,12 +4,12 @@ import shutil
 
 import pytest
 
-from src.storage import PackageStorage
+from src.storage import S3Storage
 
 
 def test_save_and_get_package(tmp_path):
     d = tmp_path / 'stor'
-    svc = PackageStorage(storage_dir=str(d))
+    svc = S3Storage(storage_dir=str(d))
 
     info = svc.save_package('mypkg', '1.0.0', url='http://x', scores={'net_score': {'value': 0.5}})
     pid = info['id']
@@ -21,7 +21,7 @@ def test_save_and_get_package(tmp_path):
 
 def test_search_by_regex_and_invalid_pattern(tmp_path):
     d = tmp_path / 'stor2'
-    svc = PackageStorage(storage_dir=str(d))
+    svc = S3Storage(storage_dir=str(d))
 
     a = svc.save_package('alpha', '0.1', scores={'net_score': {'value': 1.0}})
     b = svc.save_package('beta', '0.1', scores={'net_score': {'value': 0.2}})
