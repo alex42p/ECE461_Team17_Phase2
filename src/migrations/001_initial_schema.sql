@@ -2,7 +2,7 @@
 -- artifacts table (modles, dataset, code)
 CREATE TABLE artifacts (
     id VARCHAR(255) PRIMARY KEY,
-    artifact_type VARCHAR(50) NOT NULL CHECK (artifact_type IN ('model', 'dataset', 'code')),
+    artifact_type VARCHAR(10) NOT NULL CHECK (artifact_type IN ('model', 'dataset', 'code')),
     name VARCHAR(255) NOT NULL,
     version VARCHAR(100),
     url TEXT NOT NULL,
