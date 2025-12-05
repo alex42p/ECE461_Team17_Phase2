@@ -4,12 +4,16 @@ Replaces 301 lines of custom middleware with ~80 lines
 """
 # mypy: ignore-errors
 # pyright: reportAttributeAccessIssue=false
-
+import os
 from functools import wraps
 from flask import request, jsonify
 from typing import Optional, Callable, List
-from cognito_auth import cognito_auth
 
+AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+
+from cognito_auth import CognitoAuthService
+cognito_auth = CognitoAuthService(AWS_ACCESS_KEY, AWS_SECRET_KEY)
 def get_token_from_request() -> Optional[str]:
     """Extract bearer token from request headers."""
     auth_header = request.headers.get('X-Authorization')

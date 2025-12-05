@@ -3,15 +3,24 @@ Flask application with authentication, health monitoring, and audit trails.
 This is the main application file with all security and observability features.
 """
 # mypy: ignore-errors
-
 import os
 import subprocess
 import tempfile
 import shutil
+from pathlib import Path
 import logging 
 from typing import Any
 from flask import Flask, request, jsonify, render_template, g
 from datetime import datetime, timezone
+from dotenv import load_dotenv
+load_dotenv()
+
+from cognito_auth import CognitoAuthService
+# Load environment variables
+AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+FLASK_SECRET_KEY = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 
 # Import storage
 from storage import S3Storage
@@ -19,19 +28,38 @@ from storage import S3Storage
 # Import database and services
 from database import get_db, init_db, UserRole, AuditAction, db_manager, User
 
+# Ensure logs directory exists at project root
+ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+LOGS_DIR = os.path.join(ROOT_DIR, 'logs')
+os.makedirs(LOGS_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOGS_DIR, 'flask_app.log')
+
+# Configure logger
+logger = logging.getLogger('flask_app')
+logger.setLevel(logging.DEBUG)
+file_handler = logging.FileHandler(LOG_FILE, mode='w')
+file_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+file_handler.setFormatter(formatter)
+if not logger.handlers:
+    logger.addHandler(file_handler)
+
+logger.debug('Logger initialized, writing to %s', LOG_FILE)
+
 # Try to import Cognito auth, fallback to legacy auth if not configured
 try:
-    from cognito_auth import CognitoAuthService
-    cognito_auth = CognitoAuthService()
+    # from cognito_auth import CognitoAuthService
+    
+    cognito_auth = CognitoAuthService(AWS_ACCESS_KEY, AWS_SECRET_KEY)
     from cognito_middleware import (
         require_auth, require_admin, require_uploader, require_downloader,
         optional_auth, get_current_user, rate_limit
     )
     USE_COGNITO = cognito_auth.enabled
-    print(f"✓ Cognito authentication: {'ENABLED' if USE_COGNITO else 'DISABLED (using legacy auth)'}")
+    logger.debug(f"Cognito authentication: {'ENABLED' if USE_COGNITO else 'DISABLED (using legacy auth)'}")
 except Exception as e:
-    print(f"⚠️  Cognito not available: {e}")
-    print("   Using legacy authentication system")
+    logger.error(f"Cognito not available: {e}")
+    logger.info("Using legacy authentication system")
     USE_COGNITO = False
     from auth_service import AuthService
     from auth_middleware import (
@@ -63,40 +91,13 @@ import reproducibility
 import reviewedness
 import tree_score
 
-# SET UP LOGGER HERE
-from pathlib import Path
-
-# Ensure logs directory exists at project root
-ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
-LOGS_DIR = os.path.join(ROOT_DIR, 'logs')
-os.makedirs(LOGS_DIR, exist_ok=True)
-LOG_FILE = os.path.join(LOGS_DIR, 'flask_app.log')
-
-# Configure logger
-logger = logging.getLogger('flask_app')
-logger.setLevel(logging.DEBUG)
-file_handler = logging.FileHandler(LOG_FILE, mode='w')
-file_handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-file_handler.setFormatter(formatter)
-stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.INFO)
-stream_handler.setFormatter(formatter)
-if not logger.handlers:
-    logger.addHandler(file_handler)
-    logger.addHandler(stream_handler)
-
-logger.debug('Logger initialized, writing to %s', LOG_FILE)
 
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+app.config['SECRET_KEY'] = FLASK_SECRET_KEY
 
 # Initialize storage
 storage = S3Storage()
-
-# Get GitHub token
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
 # Initialize database on startup
 with app.app_context():
@@ -237,6 +238,7 @@ def authenticate():
         logger.debug('Authenticating user: %s (cognito=%s)', username, USE_COGNITO)
 
         # Try Cognito if enabled, otherwise use legacy auth
+        logger.debug('Using Cognito: %s', USE_COGNITO)
         if USE_COGNITO:
             result = cognito_auth.authenticate(username, password)
             logger.info('User %s authenticated via Cognito', username)
@@ -251,28 +253,29 @@ def authenticate():
                 "max_api_calls": 1000
             }), 200
         else:
-            # Legacy authentication
-            session = get_db()
-            auth_service = AuthService(session)
-            result = auth_service.authenticate(username, password)
+            # # Legacy authentication
+            # session = get_db()
+            # auth_service = AuthService(session)
+            # result = auth_service.authenticate(username, password)
 
-            if not result:
-                logger.info('Authentication failed for user %s', username)
-                return jsonify({
-                    "error": "Authentication failed",
-                    "message": "Invalid username or password"
-                }), 401
+            # if not result:
+            #     logger.info('Authentication failed for user %s', username)
+            #     return jsonify({
+            #         "error": "Authentication failed",
+            #         "message": "Invalid username or password"
+            #     }), 401
 
-            logger.info('User %s authenticated via legacy auth', username)
-            return jsonify({
-                "token": result["token"],
-                "user": {
-                    "name": result["username"],
-                    "role": result["role"]
-                },
-                "expires_at": result["expires_at"],
-                "max_api_calls": 1000
-            }), 200
+            # logger.info('User %s authenticated via legacy auth', username)
+            # return jsonify({
+            #     "token": result["token"],
+            #     "user": {
+            #         "name": result["username"],
+            #         "role": result["role"]
+            #     },
+            #     "expires_at": result["expires_at"],
+            #     "max_api_calls": 1000
+            # }), 200
+            pass
 
     except Exception as e:
         logger.exception('Error in authenticate endpoint')
@@ -326,25 +329,26 @@ def create_user():
                 "user": user
             }), 201
         else:
-            # Legacy user creation
-            try:
-                role = UserRole(role_str)
-            except ValueError:
-                logger.warning('Invalid legacy role provided: %s', role_str)
-                return jsonify({
-                    "error": f"Invalid role. Must be one of: {[r.value for r in UserRole]}"
-                }), 400
+            # # Legacy user creation
+            # try:
+            #     role = UserRole(role_str)
+            # except ValueError:
+            #     logger.warning('Invalid legacy role provided: %s', role_str)
+            #     return jsonify({
+            #         "error": f"Invalid role. Must be one of: {[r.value for r in UserRole]}"
+            #     }), 400
 
-            session = get_db()
-            auth_service = AuthService(session)
-            user = auth_service.create_user(username, password, role)
-            session.commit()
+            # session = get_db()
+            # auth_service = AuthService(session)
+            # user = auth_service.create_user(username, password, role)
+            # session.commit()
 
-            logger.info('Created legacy user %s', username)
-            return jsonify({
-                "success": True,
-                "user": user.to_dict()
-            }), 201
+            # logger.info('Created legacy user %s', username)
+            # return jsonify({
+            #     "success": True,
+            #     "user": user.to_dict()
+            # }), 201
+            pass
 
     except ValueError as e:
         logger.exception('ValueError in create_user')
@@ -367,30 +371,31 @@ def delete_user(username: str):
             logger.info('Deleted Cognito user %s', username)
         else:
             # Legacy delete
-            current_user_data = get_current_user()
-            if not current_user_data:
-                logger.warning('Delete user attempted without authentication')
-                return jsonify({"error": "Authentication required"}), 401
+            # current_user_data = get_current_user()
+            # if not current_user_data:
+            #     logger.warning('Delete user attempted without authentication')
+            #     return jsonify({"error": "Authentication required"}), 401
 
-            session = get_db()
-            auth_service = AuthService(session)
+            # session = get_db()
+            # auth_service = AuthService(session)
 
-            requesting_user = session.query(User).filter_by(
-                username=current_user_data["username"]
-            ).first()
+            # requesting_user = session.query(User).filter_by(
+            #     username=current_user_data["username"]
+            # ).first()
 
-            if not requesting_user:
-                logger.warning('Requesting user not found in delete_user')
-                return jsonify({"error": "User not found"}), 404
+            # if not requesting_user:
+            #     logger.warning('Requesting user not found in delete_user')
+            #     return jsonify({"error": "User not found"}), 404
 
-            success = auth_service.delete_user(username, requesting_user)
+            # success = auth_service.delete_user(username, requesting_user)
 
-            if not success:
-                logger.info('Insufficient permissions for user deletion: %s', current_user_data.get('username'))
-                return jsonify({"error": "Insufficient permissions"}), 403
+            # if not success:
+            #     logger.info('Insufficient permissions for user deletion: %s', current_user_data.get('username'))
+            #     return jsonify({"error": "Insufficient permissions"}), 403
 
-            session.commit()
-            logger.info('Deleted legacy user %s', username)
+            # session.commit()
+            # logger.info('Deleted legacy user %s', username)
+            pass
 
         return jsonify({"success": True, "message": f"User {username} deleted"}), 200
 
@@ -410,11 +415,11 @@ def list_users():
         if USE_COGNITO:
             # Get users from Cognito
             users = cognito_auth.list_users()
-        else:
-            # Legacy list users
-            session = get_db()
-            auth_service = AuthService(session)
-            users = auth_service.list_users()
+        # else:
+        #     # Legacy list users
+        #     session = get_db()
+        #     auth_service = AuthService(session)
+        #     users = auth_service.list_users()
 
         logger.debug('Found %s users', len(users))
         return jsonify({

@@ -16,5 +16,5 @@ botocore
 selenium
 python-dateutil
 structlog
-transformers[torch] # takes ~2GB of space
+transformers[torch] # takes ~6GB of space, including its dependencies
 datasets

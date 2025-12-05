@@ -7,6 +7,8 @@ Replaces 450+ lines of custom auth code with ~200 lines
 # pyright: reportOptionalMemberAccess=false
 
 import os
+import logging
+from pathlib import Path
 import boto3
 import hmac
 import hashlib
@@ -17,22 +19,46 @@ from botocore.exceptions import ClientError
 class CognitoAuthService:
     """Lightweight authentication service using AWS Cognito."""
     
-    def __init__(self):
+    def __init__(self, aws_access_key: Optional[str], aws_secret_key: Optional[str]):
         """Initialize Cognito client with environment variables."""
+        self.__name__ = self.__class__.__name__
+        # logger setup
+        self.logger = logging.getLogger(self.__name__)
+        self.logger.setLevel(logging.DEBUG)
+        try:
+            root_dir = Path(__file__).resolve().parents[1]
+        except Exception:
+            root_dir = Path('.')
+        logs_dir = root_dir / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_file = logs_dir / f"{self.__name__}.log"
+        if not any(isinstance(h, logging.FileHandler) and h.baseFilename == str(log_file) for h in self.logger.handlers):
+            fh = logging.FileHandler(str(log_file), mode='w')
+            fh.setLevel(logging.DEBUG)
+            fmt = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
+            fh.setFormatter(fmt)
+            self.logger.addHandler(fh)
+
         self.region = os.environ.get('AWS_REGION', 'us-east-2')
         self.user_pool_id = os.environ.get('AWS_COGNITO_USER_POOL_ID')
         self.client_id = os.environ.get('AWS_COGNITO_CLIENT_ID')
         self.client_secret = os.environ.get('AWS_COGNITO_CLIENT_SECRET')
-        
-        # Make Cognito optional - only initialize if credentials are present
-        if all([self.user_pool_id, self.client_id, self.client_secret]):
-            self.client = boto3.client('cognito-idp', region_name=self.region)
+
+        if all([self.region, aws_access_key, aws_secret_key]):
+            self.client = boto3.client('cognito-idp',
+                                        region_name=self.region,
+                                        aws_access_key_id=aws_access_key,
+                                        aws_secret_access_key=aws_secret_key,
+            )
             self.enabled = True
         else:
+            self.logger.debug("⚠️  Cognito not fully configured - disabling Cognito features")
             self.client = None
             self.enabled = False
-            print("⚠️  Cognito not configured - AWS Cognito features disabled")
-            print("   To enable: Run ./scripts/setup_cognito.sh and set environment variables")
+            self.logger.debug("⚠️  Cognito not configured - AWS Cognito features disabled")
+            # self.logger.debug("   To enable: Run ./scripts/setup_cognito.sh and set environment variables")
+        
+        self.logger.info("Initialized CognitoAuthService")
     
     def _get_secret_hash(self, username: str) -> str:
         """Generate secret hash for Cognito authentication."""
@@ -62,7 +88,7 @@ class CognitoAuthService:
             raise ValueError("Cognito is not configured. Use legacy auth system.")
         
         try:
-            response = self.client.admin_initiate_auth( # type: ignore
+            response = self.client.admin_initiate_auth( 
                 UserPoolId=self.user_pool_id,
                 ClientId=self.client_id,
                 AuthFlow='ADMIN_USER_PASSWORD_AUTH',

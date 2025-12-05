@@ -387,14 +387,14 @@ class AuthService:
         ]
 
 
-# Module-level initialization check
-if not os.environ.get("JWT_SECRET"):
-    import warnings
-    warnings.warn(
-        "JWT_SECRET environment variable not set! Using random secret. "
-        "This is INSECURE for production. Set JWT_SECRET in your environment.",
-        UserWarning
-    )
+# # Module-level initialization check
+# if not os.environ.get("JWT_SECRET"):
+#     import warnings
+#     warnings.warn(
+#         "JWT_SECRET environment variable not set! Using random secret. "
+#         "This is INSECURE for production. Set JWT_SECRET in your environment.",
+#         UserWarning
+#     )
 
 
 # if __name__ == "__main__":
