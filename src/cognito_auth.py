@@ -19,7 +19,7 @@ class CognitoAuthService:
     
     def __init__(self):
         """Initialize Cognito client with environment variables."""
-        self.region = os.environ.get('AWS_REGION', 'us-east-1')
+        self.region = os.environ.get('AWS_REGION', 'us-east-2')
         self.user_pool_id = os.environ.get('AWS_COGNITO_USER_POOL_ID')
         self.client_id = os.environ.get('AWS_COGNITO_CLIENT_ID')
         self.client_secret = os.environ.get('AWS_COGNITO_CLIENT_SECRET')
@@ -198,8 +198,4 @@ class CognitoAuthService:
             return self.get_user_info(access_token)
         except:
             return None
-
-
-# Global instance
-cognito_auth = CognitoAuthService()
 

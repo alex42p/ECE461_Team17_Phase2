@@ -2,8 +2,8 @@
 # AWS Cognito User Pool Setup Script for ECE461 Package Registry
 set -e
 
-REGION="${AWS_REGION:-us-east-1}"
-POOL_NAME="ece461-package-registry-users"
+REGION="${AWS_REGION:-us-east-2}"
+POOL_NAME="team17-user-pool"
 
 echo "=================================================="
 echo "AWS Cognito User Pool Setup"
@@ -43,7 +43,7 @@ echo "✓ User Pool Created: $POOL_ID"
 echo "Creating User Pool App Client..."
 CLIENT_ID=$(aws cognito-idp create-user-pool-client \
   --user-pool-id "$POOL_ID" \
-  --client-name "ece461-webapp-client" \
+  --client-name "team-17-ece461" \
   --region "$REGION" \
   --generate-secret \
   --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH ALLOW_ADMIN_USER_PASSWORD_AUTH \

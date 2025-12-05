@@ -21,7 +21,8 @@ from database import get_db, init_db, UserRole, AuditAction, db_manager, User
 
 # Try to import Cognito auth, fallback to legacy auth if not configured
 try:
-    from cognito_auth import cognito_auth
+    from cognito_auth import CognitoAuthService
+    cognito_auth = CognitoAuthService()
     from cognito_middleware import (
         require_auth, require_admin, require_uploader, require_downloader,
         optional_auth, get_current_user, rate_limit
@@ -136,7 +137,7 @@ def after_request(response):
 
     return response
 
-@app.teardown_appcontext 
+@app.teardown_appcontext # type: ignore
 def teardown_db(exception=None):
     """Close database session at end of request."""
     session = g.pop('db_session', None)
