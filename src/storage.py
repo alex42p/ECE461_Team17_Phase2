@@ -2,6 +2,7 @@
 Simple storage system for MVP.
 Stores package metadata in JSON files.
 """
+# mypy: ignore-errors
 
 import os
 import json

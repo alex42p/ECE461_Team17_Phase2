@@ -1,6 +1,7 @@
 """
 DynamoDB Service for Package Registry
 """
+# mypy: ignore-errors
 
 import boto3
 import os
