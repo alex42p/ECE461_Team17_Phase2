@@ -5,7 +5,7 @@ Health monitoring service for tracking system component health.
 
 import time
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 import os
@@ -24,7 +24,7 @@ class HealthMonitor:
     """Monitor health of system components."""
     
     def __init__(self):
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
         self.request_counts = {
             "total": 0,
             "success": 0,
@@ -34,7 +34,7 @@ class HealthMonitor:
     
     def get_uptime_seconds(self) -> float:
         """Get system uptime in seconds."""
-        return (datetime.utcnow() - self.start_time).total_seconds()
+        return (datetime.now(timezone.utc) - self.start_time).total_seconds()
     
     def record_request(self, route: str, success: bool):
         """Record a request for statistics."""
@@ -68,14 +68,14 @@ class HealthMonitor:
                 name="database",
                 status="ok",
                 response_time_ms=round(response_time_ms, 2),
-                last_checked=datetime.utcnow().isoformat()
+                last_checked=datetime.now(timezone.utc).isoformat()
             )
         except Exception as e:
             return ComponentHealth(
                 name="database",
                 status="critical",
                 error_message=str(e),
-                last_checked=datetime.utcnow().isoformat()
+                last_checked=datetime.now(timezone.utc).isoformat()
             )
     
     def check_s3_health(self) -> ComponentHealth:
@@ -95,14 +95,14 @@ class HealthMonitor:
                 name="s3_storage",
                 status="ok",
                 response_time_ms=round(response_time_ms, 2),
-                last_checked=datetime.utcnow().isoformat()
+                last_checked=datetime.now(timezone.utc).isoformat()
             )
         except ClientError as e:
             return ComponentHealth(
                 name="s3_storage",
                 status="critical",
                 error_message=str(e),
-                last_checked=datetime.utcnow().isoformat()
+                last_checked=datetime.now(timezone.utc).isoformat()
             )
         except Exception as e:
             # If S3 not configured, mark as unknown
@@ -110,7 +110,7 @@ class HealthMonitor:
                 name="s3_storage",
                 status="unknown",
                 error_message=f"S3 not configured: {str(e)}",
-                last_checked=datetime.utcnow().isoformat()
+                last_checked=datetime.now(timezone.utc).isoformat()
             )
     
     def check_github_api_health(self) -> ComponentHealth:
@@ -135,7 +135,7 @@ class HealthMonitor:
                     name="github_api",
                     status=status,
                     response_time_ms=round(response_time_ms, 2),
-                    last_checked=datetime.utcnow().isoformat(),
+                    last_checked=datetime.now(timezone.utc).isoformat(),
                     details={"rate_limit_remaining": remaining}
                 )
             else:
@@ -143,14 +143,14 @@ class HealthMonitor:
                     name="github_api",
                     status="degraded",
                     error_message=f"HTTP {response.status_code}",
-                    last_checked=datetime.utcnow().isoformat()
+                    last_checked=datetime.now(timezone.utc).isoformat()
                 )
         except Exception as e:
             return ComponentHealth(
                 name="github_api",
                 status="critical",
                 error_message=str(e),
-                last_checked=datetime.utcnow().isoformat()
+                last_checked=datetime.now(timezone.utc).isoformat()
             )
     
     def check_huggingface_api_health(self) -> ComponentHealth:
@@ -169,21 +169,21 @@ class HealthMonitor:
                     name="huggingface_api",
                     status="ok",
                     response_time_ms=round(response_time_ms, 2),
-                    last_checked=datetime.utcnow().isoformat()
+                    last_checked=datetime.now(timezone.utc).isoformat()
                 )
             else:
                 return ComponentHealth(
                     name="huggingface_api",
                     status="degraded",
                     error_message=f"HTTP {response.status_code}",
-                    last_checked=datetime.utcnow().isoformat()
+                    last_checked=datetime.now(timezone.utc).isoformat()
                 )
         except Exception as e:
             return ComponentHealth(
                 name="huggingface_api",
                 status="critical",
                 error_message=str(e),
-                last_checked=datetime.utcnow().isoformat()
+                last_checked=datetime.now(timezone.utc).isoformat()
             )
     
     def get_component_health(self) -> List[ComponentHealth]:
@@ -233,7 +233,7 @@ class HealthMonitor:
                 }
                 for c in components
             ],
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     
     def get_route_statistics(self) -> Dict[str, Any]:
