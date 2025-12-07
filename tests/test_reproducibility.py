@@ -117,3 +117,37 @@ def test_fetch_pr_stats_handles_graphql_error(monkeypatch):
 
     with pytest.raises(Exception):
         m._fetch_pr_stats('o', 'r')
+
+
+def test_extract_demo_code_variations():
+    metric = ReproducibilityMetric()
+    readme = """
+Some intro
+```python
+print('hi')
+```
+
+More text
+```python
+import os
+```
+    """
+    code = metric._extract_demo_code(readme)
+    assert any('print' in c for c in code)
+    assert any('import os' in c for c in code)
+
+
+def test_compute_success_and_minor_issue(monkeypatch):
+    metric = ReproducibilityMetric()
+    # Provide metadata with a simple code block
+    metadata = {'hf_metadata': {'readme_text': '```python\nprint("ok")\n```'}}
+
+    # Mock _run_code_safely to simulate success
+    monkeypatch.setattr(metric, '_run_code_safely', lambda code: (True, 'ok'))
+    res = metric.compute(metadata)
+    assert res.value == 1.0
+
+    # Simulate failure but minor issue
+    monkeypatch.setattr(metric, '_run_code_safely', lambda code: (False, 'ModuleNotFoundError: No module named torch'))
+    res2 = metric.compute(metadata)
+    assert res2.value == 0.5

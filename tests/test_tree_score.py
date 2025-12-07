@@ -74,3 +74,35 @@ def test_compute_with_parents(monkeypatch):
     assert result.value == 0.9
     assert result.details["num_parents"] == 1
     assert result.details["evaluated_parents"] == 1
+
+
+def test_extract_parent_models_from_config_dict():
+    metric = TreeScoreMetric()
+    metadata = {
+        "hf_metadata": {
+            "siblings": [],
+        },
+        "config": {
+            "_name_or_path": "google/bert-large",
+            "model_name": "bert-large",
+            "other": "something"
+        }
+    }
+    parents = metric._extract_parent_models(metadata)
+    assert any('google/bert-large' == p or 'bert-large' == p for p in parents)
+
+
+def test_get_parent_score_handles_empty_and_exceptions(monkeypatch):
+    metric = TreeScoreMetric()
+
+    # No storage => None
+    metric.storage = None
+    assert metric._get_parent_score('x') is None
+
+    # storage raises exception -> should return None (handled)
+    class BadStorage:
+        def search_by_regex(self, p):
+            raise Exception('boom')
+
+    metric.storage = BadStorage()
+    assert metric._get_parent_score('owner/name') is None

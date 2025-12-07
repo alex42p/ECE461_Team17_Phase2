@@ -47,3 +47,70 @@ def test_check_database_and_apis_failures(monkeypatch):
     monkeypatch.setattr('boto3.client', lambda *a, **k: (_ for _ in ()).throw(Exception('no s3')))
     s3 = monitor.check_s3_health()
     assert s3.status in ('unknown', 'critical')
+
+
+def test_overall_status_variations(monkeypatch):
+    monitor = hm.HealthMonitor()
+
+    # All OK
+    monkeypatch.setattr(monitor, 'get_component_health', lambda: [
+        hm.ComponentHealth(name='a', status='ok'),
+        hm.ComponentHealth(name='b', status='ok')
+    ])
+    assert monitor.get_overall_status() == 'ok'
+
+    # One degraded
+    monkeypatch.setattr(monitor, 'get_component_health', lambda: [
+        hm.ComponentHealth(name='a', status='ok'),
+        hm.ComponentHealth(name='b', status='degraded')
+    ])
+    assert monitor.get_overall_status() == 'degraded'
+
+    # Unknown mix
+    monkeypatch.setattr(monitor, 'get_component_health', lambda: [
+        hm.ComponentHealth(name='a', status='ok'),
+        hm.ComponentHealth(name='b', status='unknown')
+    ])
+    assert monitor.get_overall_status() == 'unknown'
+
+    # Route statistics when no requests
+    monitor = hm.HealthMonitor()
+    stats = monitor.get_route_statistics()
+    assert stats['total_requests'] == 0
+    assert stats['success_rate'] == 0
+
+
+def test_github_and_hf_api_health(monkeypatch):
+    monitor = hm.HealthMonitor()
+
+    class GoodResp:
+        status_code = 200
+        def json(self):
+            return {'rate': {'remaining': 200}}
+
+    class LowResp:
+        status_code = 200
+        def json(self):
+            return {'rate': {'remaining': 10}}
+
+    monkeypatch.setattr('requests.get', lambda *a, **k: GoodResp())
+    gh = monitor.check_github_api_health()
+    assert gh.status == 'ok'
+
+    monkeypatch.setattr('requests.get', lambda *a, **k: LowResp())
+    gh2 = monitor.check_github_api_health()
+    assert gh2.status == 'degraded'
+
+    # HuggingFace API success and failure
+    class HFGood:
+        status_code = 200
+    class HFBad:
+        status_code = 500
+
+    monkeypatch.setattr('requests.get', lambda *a, **k: HFGood())
+    hf = monitor.check_huggingface_api_health()
+    assert hf.status == 'ok'
+
+    monkeypatch.setattr('requests.get', lambda *a, **k: HFBad())
+    hf2 = monitor.check_huggingface_api_health()
+    assert hf2.status == 'degraded'

@@ -48,3 +48,22 @@ def test_cognito_enabled_and_methods(monkeypatch):
 
     users = svc.list_users()
     assert isinstance(users, list) and users[0]['username'] == 'u'
+
+
+def test_authenticate_handles_clienterror(monkeypatch):
+    from botocore.exceptions import ClientError
+
+    monkeypatch.setenv('AWS_COGNITO_USER_POOL_ID', 'pool')
+    monkeypatch.setenv('AWS_COGNITO_CLIENT_ID', 'cid')
+    monkeypatch.setenv('AWS_COGNITO_CLIENT_SECRET', 'secret')
+
+    class BadClient:
+        def admin_initiate_auth(self, **k):
+            err = {'Error': {'Code': 'NotAuthorizedException', 'Message': 'Bad creds'}}
+            raise ClientError(err, 'AdminInitiateAuth')
+
+    monkeypatch.setattr('boto3.client', lambda *a, **k: BadClient())
+
+    svc = ca.CognitoAuthService()
+    with pytest.raises(ValueError):
+        svc.authenticate('u', 'p')

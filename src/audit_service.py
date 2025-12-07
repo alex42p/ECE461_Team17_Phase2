@@ -3,7 +3,7 @@ Audit trail service for tracking all operations on artifacts.
 Implements comprehensive logging of CRUD operations and downloads.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from database import AuditLog, AuditAction
@@ -336,10 +336,5 @@ class AuditService:
             },
             "unique_users": unique_users,
             "unique_artifacts": unique_artifacts,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
-
-
-
-
-

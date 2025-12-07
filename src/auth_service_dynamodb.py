@@ -20,7 +20,7 @@ class AuthService:
     (Updated to work with DynamoDB instead of PostgreSQL)
     """
     
-    def __init__(self, db_service: DynamoDBService, secret_key: str, jwt_secret: str = None):
+    def __init__(self, db_service: DynamoDBService, secret_key: str, jwt_secret: Optional[str] = None):
         """
         Initialize auth service.
         
