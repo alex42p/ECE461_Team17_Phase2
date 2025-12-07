@@ -20,7 +20,7 @@ from botocore.exceptions import ClientError
 class CognitoAuthService:
     """Lightweight authentication service using AWS Cognito."""
     
-    def __init__(self, aws_access_key: Optional[str], aws_secret_key: Optional[str]):
+    def __init__(self, aws_access_key: Optional[str] = None, aws_secret_key: Optional[str] = None):
         """Initialize Cognito client with environment variables."""
         self.__name__ = self.__class__.__name__
         # logger setup
@@ -50,13 +50,25 @@ class CognitoAuthService:
         self.logger.debug(f"Cognito user_pool_id set={bool(self.user_pool_id)}")
         self.logger.debug(f"Cognito client_id set={bool(self.client_id)}")
 
-        if all([self.region, aws_access_key, aws_secret_key]):
-            self.client = boto3.client('cognito-idp',
-                                        region_name=self.region,
-                                        aws_access_key_id=aws_access_key,
-                                        aws_secret_access_key=aws_secret_key,
-            )
-            self.enabled = True
+        # Enable Cognito client if required Cognito env vars are present. Prefer explicit AWS keys
+        # when provided, otherwise rely on environment/instance role and boto3 defaults.
+        if self.user_pool_id and self.client_id:
+            try:
+                if aws_access_key and aws_secret_key:
+                    self.client = boto3.client('cognito-idp',
+                                                region_name=self.region,
+                                                aws_access_key_id=aws_access_key,
+                                                aws_secret_access_key=aws_secret_key,
+                    )
+                else:
+                    self.client = boto3.client('cognito-idp', region_name=self.region)
+                self.enabled = True
+                self.logger.debug("Cognito client initialized (client present=%s)", bool(self.client))
+            except Exception as e:
+                self._log_exception("Failed to initialize boto3 Cognito client", e)
+                self.client = None
+                self.enabled = False
+                self.logger.debug("⚠️  Cognito client initialization failed - features disabled")
         else:
             self.logger.debug("⚠️  Cognito not fully configured - disabling Cognito features")
             self.client = None
