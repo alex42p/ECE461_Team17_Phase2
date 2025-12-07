@@ -15,7 +15,6 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 load_dotenv()
 
-from cognito_auth import CognitoAuthService
 # Load environment variables
 AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
@@ -49,7 +48,7 @@ logger.debug('Logger initialized, writing to %s', LOG_FILE)
 # Try to import Cognito auth, fallback to legacy auth if not configured
 try:
     # from cognito_auth import CognitoAuthService
-    
+    from cognito_auth import CognitoAuthService
     cognito_auth = CognitoAuthService(AWS_ACCESS_KEY, AWS_SECRET_KEY)
     from cognito_middleware import (
         require_auth, require_admin, require_uploader, require_downloader,
@@ -61,11 +60,6 @@ except Exception as e:
     logger.error(f"Cognito not available: {e}")
     logger.info("Using legacy authentication system")
     USE_COGNITO = False
-    from auth_service import AuthService
-    from auth_middleware import (
-        require_auth, require_admin, require_uploader, require_downloader,
-        optional_auth, get_current_user, rate_limit
-    )
 
 from health_monitor import health_monitor
 from audit_service import AuditService
@@ -216,6 +210,7 @@ def authenticate():
         200: Token generated successfully
         401: Authentication failed
         400: Invalid request
+        500: Error during authentication
     """
     try:
         logger.info('Authenticate endpoint called from %s', request.remote_addr)
