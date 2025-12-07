@@ -18,6 +18,8 @@ load_dotenv()
 # Load environment variables
 AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = os.environ.get("AWS_DEFAULT_REGION")
+DYNAMODB_ENDPOINT = os.environ.get("DYNAMODB_ENDPOINT")
 FLASK_SECRET_KEY = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 
@@ -26,6 +28,7 @@ from storage import S3Storage
 
 # Import database and services
 from database import get_db, init_db, UserRole, AuditAction, db_manager, User
+from dynamodb_service import DynamoDBService
 
 # Ensure logs directory exists at project root
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -45,7 +48,6 @@ if not logger.handlers:
 
 logger.debug('Logger initialized, writing to %s', LOG_FILE)
 
-# Try to import Cognito auth, fallback to legacy auth if not configured
 try:
     # from cognito_auth import CognitoAuthService
     from cognito_auth import CognitoAuthService
@@ -92,6 +94,9 @@ app.config['SECRET_KEY'] = FLASK_SECRET_KEY
 
 # Initialize storage
 storage = S3Storage()
+
+# Initialize DynamoDB service 
+dynamodb_service = DynamoDBService(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT)
 
 # Initialize database on startup
 with app.app_context():

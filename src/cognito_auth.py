@@ -22,8 +22,8 @@ class CognitoAuthService:
     
     def __init__(self, aws_access_key: Optional[str] = None, aws_secret_key: Optional[str] = None):
         """Initialize Cognito client with environment variables."""
-        self.__name__ = self.__class__.__name__
         # logger setup
+        self.__name__ = self.__class__.__name__
         self.logger = logging.getLogger(self.__name__)
         self.logger.setLevel(logging.DEBUG)
         try:

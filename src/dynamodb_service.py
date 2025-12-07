@@ -2,19 +2,18 @@
 DynamoDB Service for Package Registry
 """
 # mypy: ignore-errors
+# pyright: reportAttributeAccessIssue=false
 
 import boto3
 import os
 import logging
+from pathlib import Path
 from typing import Optional, Dict, List, Any
 from datetime import datetime, timezone
 from decimal import Decimal
 import json
 from botocore.exceptions import ClientError
 from enum import Enum
-
-logger = logging.getLogger(__name__)
-
 
 class UserRole(str, Enum):
     """User roles for authorization"""
@@ -44,29 +43,60 @@ class DynamoDBService:
     - AuditLog: Comprehensive audit trail
     - TokenUsage: JWT token tracking
     """
-    
-    def __init__(self, region_name: Optional[str] = None, endpoint_url: Optional[str] = None):
+
+    def __init__(self, aws_access_key: Optional[str], aws_secret_key: Optional[str], region_name: Optional[str] = None, endpoint_url: Optional[str] = None):
         """
         Initialize DynamoDB service.
         
         Args:
-            region_name: AWS region (defaults to env var or us-east-1)
+            region_name: AWS region
             endpoint_url: Optional endpoint for local development (DynamoDB Local)
         """
-        self.region_name = region_name or os.environ.get('AWS_REGION', 'us-east-1')
-        
+        # logger setup
+        self.__name__ = self.__class__.__name__
+        self.logger = logging.getLogger(self.__name__)
+        self.logger.setLevel(logging.DEBUG)
+        try:
+            root_dir = Path(__file__).resolve().parents[1]
+        except Exception:
+            root_dir = Path('.')
+        logs_dir = root_dir / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_file = logs_dir / f"{self.__name__}.log"
+        if not any(isinstance(h, logging.FileHandler) and h.baseFilename == str(log_file) for h in self.logger.handlers):
+            fh = logging.FileHandler(str(log_file), mode='w')
+            fh.setLevel(logging.DEBUG)
+            fmt = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
+            fh.setFormatter(fmt)
+            self.logger.addHandler(fh)
+
+        self.region_name = region_name
+        self.aws_access_key = aws_access_key
+        self.aws_secret_key = aws_secret_key
+        self.endpoint_url = endpoint_url
+
+        if not all([self.region_name, self.aws_access_key, self.aws_secret_key]):
+            self.logger.error("AWS credentials or region not properly set in environment variables.")
+            raise ValueError("AWS credentials or region not properly set in environment variables.")
+
         # for local development, use DynamoDB Local
-        if endpoint_url or os.environ.get('DYNAMODB_ENDPOINT'):
-            endpoint_url = endpoint_url or os.environ.get('DYNAMODB_ENDPOINT')
+        if self.endpoint_url:
             self.dynamodb = boto3.resource(
                 'dynamodb',
                 region_name=self.region_name,
-                endpoint_url=endpoint_url
+                endpoint_url=endpoint_url,
+                aws_access_key_id=self.aws_access_key,
+                aws_secret_access_key=self.aws_secret_key
             )
-            logger.info(f"Connected to DynamoDB Local at {endpoint_url}")
+            self.logger.info(f"Connected to DynamoDB Local at {endpoint_url}")
         else:
-            self.dynamodb = boto3.resource('dynamodb', region_name=self.region_name)
-            logger.info(f"Connected to DynamoDB in region {self.region_name}")
+            self.dynamodb = boto3.resource(
+                'dynamodb',
+                region_name=self.region_name,
+                aws_access_key_id=self.aws_access_key,
+                aws_secret_access_key=self.aws_secret_key
+            )
+            self.logger.info(f"Connected to DynamoDB in region {self.region_name}")
         
         self.table_prefix = os.environ.get('DYNAMODB_TABLE_PREFIX', 'ECE461-Team17')
         
@@ -81,13 +111,13 @@ class DynamoDBService:
     def _initialize_tables(self):
         """Initialize DynamoDB table references"""
         try:
-            self.packages_table = self.dynamodb.Table(f'{self.table_prefix}-Packages')
+            self.packages_table = self.dynamodb.Table(f'{self.table_prefix}-Packages') 
             self.users_table = self.dynamodb.Table(f'{self.table_prefix}-Users')
             self.audit_table = self.dynamodb.Table(f'{self.table_prefix}-AuditLog')
             self.tokens_table = self.dynamodb.Table(f'{self.table_prefix}-Tokens')
-            logger.info("DynamoDB tables initialized successfully")
+            self.logger.info("DynamoDB tables initialized successfully")
         except Exception as e:
-            logger.error(f"Error initializing tables: {e}")
+            self.logger.error(f"Error initializing tables: {e}")
             raise
     
     def create_tables(self):
@@ -108,10 +138,10 @@ class DynamoDBService:
             # token usage table
             self._create_tokens_table()
             
-            logger.info("All DynamoDB tables created successfully")
+            self.logger.info("All DynamoDB tables created successfully")
             
         except Exception as e:
-            logger.error(f"Error creating tables: {e}")
+            self.logger.error(f"Error creating tables: {e}")
             raise
     
     def _create_packages_table(self):
@@ -160,11 +190,11 @@ class DynamoDBService:
             )
             
             table.wait_until_exists()
-            logger.info(f"Created table: {table_name}")
+            self.logger.info(f"Created table: {table_name}")
             
         except ClientError as e:
             if e.response['Error']['Code'] == 'ResourceInUseException':
-                logger.info(f"Table {table_name} already exists")
+                self.logger.info(f"Table {table_name} already exists")
             else:
                 raise
     
@@ -185,11 +215,11 @@ class DynamoDBService:
             )
             
             table.wait_until_exists()
-            logger.info(f"Created table: {table_name}")
+            self.logger.info(f"Created table: {table_name}")
             
         except ClientError as e:
             if e.response['Error']['Code'] == 'ResourceInUseException':
-                logger.info(f"Table {table_name} already exists")
+                self.logger.info(f"Table {table_name} already exists")
             else:
                 raise
     
@@ -240,11 +270,11 @@ class DynamoDBService:
             )
             
             table.wait_until_exists()
-            logger.info(f"Created table: {table_name}")
+            self.logger.info(f"Created table: {table_name}")
             
         except ClientError as e:
             if e.response['Error']['Code'] == 'ResourceInUseException':
-                logger.info(f"Table {table_name} already exists")
+                self.logger.info(f"Table {table_name} already exists")
             else:
                 raise
     
@@ -279,11 +309,11 @@ class DynamoDBService:
             )
             
             table.wait_until_exists()
-            logger.info(f"Created table: {table_name}")
+            self.logger.info(f"Created table: {table_name}")
             
         except ClientError as e:
             if e.response['Error']['Code'] == 'ResourceInUseException':
-                logger.info(f"Table {table_name} already exists")
+                self.logger.info(f"Table {table_name} already exists")
             else:
                 raise
     
@@ -319,11 +349,12 @@ class DynamoDBService:
         }
         
         try:
-            self.packages_table.put_item(Item=item)
-            logger.info(f"Created package: {item['id']}")
-            return item
+            if self.packages_table:
+                self.packages_table.put_item(Item=item)
+                self.logger.info(f"Created package: {item['id']}")
+                return item
         except ClientError as e:
-            logger.error(f"Error creating package: {e}")
+            self.logger.error(f"Error creating package: {e}")
             raise
     
     def get_package(self, package_id: str) -> Optional[Dict[str, Any]]:
@@ -337,7 +368,7 @@ class DynamoDBService:
             return None
             
         except ClientError as e:
-            logger.error(f"Error getting package {package_id}: {e}")
+            self.logger.error(f"Error getting package {package_id}: {e}")
             return None
     
     def update_package(self, package_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -374,7 +405,7 @@ class DynamoDBService:
             return self._convert_decimals_to_float(response.get('Attributes'))
             
         except ClientError as e:
-            logger.error(f"Error updating package {package_id}: {e}")
+            self.logger.error(f"Error updating package {package_id}: {e}")
             return None
     
     def delete_package(self, package_id: str, soft_delete: bool = True) -> bool:
@@ -392,11 +423,11 @@ class DynamoDBService:
             else:
                 self.packages_table.delete_item(Key={'id': package_id})
             
-            logger.info(f"Deleted package: {package_id} (soft={soft_delete})")
+            self.logger.info(f"Deleted package: {package_id} (soft={soft_delete})")
             return True
             
         except ClientError as e:
-            logger.error(f"Error deleting package {package_id}: {e}")
+            self.logger.error(f"Error deleting package {package_id}: {e}")
             return False
     
     def query_packages_by_name(self, name: str, limit: int = 100) -> List[Dict[str, Any]]:
@@ -417,7 +448,7 @@ class DynamoDBService:
             return items
             
         except ClientError as e:
-            logger.error(f"Error querying packages by name: {e}")
+            self.logger.error(f"Error querying packages by name: {e}")
             return []
     
     def query_packages_by_type(self, artifact_type: str, limit: int = 100) -> List[Dict[str, Any]]:
@@ -437,7 +468,7 @@ class DynamoDBService:
             return items
             
         except ClientError as e:
-            logger.error(f"Error querying packages by type: {e}")
+            self.logger.error(f"Error querying packages by type: {e}")
             return []
     
     def scan_packages(self, filters: Optional[Dict] = None, limit: int = 100) -> List[Dict[str, Any]]:
@@ -474,7 +505,7 @@ class DynamoDBService:
             return items
             
         except ClientError as e:
-            logger.error(f"Error scanning packages: {e}")
+            self.logger.error(f"Error scanning packages: {e}")
             return []
     
     # USER OPERATIONS
@@ -493,10 +524,10 @@ class DynamoDBService:
         
         try:
             self.users_table.put_item(Item=item)
-            logger.info(f"Created user: {item['username']}")
+            self.logger.info(f"Created user: {item['username']}")
             return item
         except ClientError as e:
-            logger.error(f"Error creating user: {e}")
+            self.logger.error(f"Error creating user: {e}")
             raise
     
     def get_user(self, username: str) -> Optional[Dict[str, Any]]:
@@ -505,7 +536,7 @@ class DynamoDBService:
             response = self.users_table.get_item(Key={'username': username})
             return response.get('Item')
         except ClientError as e:
-            logger.error(f"Error getting user {username}: {e}")
+            self.logger.error(f"Error getting user {username}: {e}")
             return None
     
     def update_user(self, username: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -528,17 +559,17 @@ class DynamoDBService:
             )
             return response.get('Attributes')
         except ClientError as e:
-            logger.error(f"Error updating user {username}: {e}")
+            self.logger.error(f"Error updating user {username}: {e}")
             return None
     
     def delete_user(self, username: str) -> bool:
         """Delete user"""
         try:
             self.users_table.delete_item(Key={'username': username})
-            logger.info(f"Deleted user: {username}")
+            self.logger.info(f"Deleted user: {username}")
             return True
         except ClientError as e:
-            logger.error(f"Error deleting user {username}: {e}")
+            self.logger.error(f"Error deleting user {username}: {e}")
             return False
     
     def list_users(self, limit: int = 100) -> List[Dict[str, Any]]:
@@ -547,7 +578,7 @@ class DynamoDBService:
             response = self.users_table.scan(Limit=limit)
             return response.get('Items', [])
         except ClientError as e:
-            logger.error(f"Error listing users: {e}")
+            self.logger.error(f"Error listing users: {e}")
             return []
     
     # AUDIT LOG OPERATIONS
@@ -572,7 +603,7 @@ class DynamoDBService:
             self.audit_table.put_item(Item=item)
             return item
         except ClientError as e:
-            logger.error(f"Error logging audit: {e}")
+            self.logger.error(f"Error logging audit: {e}")
             raise
     
     def get_artifact_audit_trail(self, artifact_id: str, limit: int = 100) -> List[Dict[str, Any]]:
@@ -587,7 +618,7 @@ class DynamoDBService:
             )
             return response.get('Items', [])
         except ClientError as e:
-            logger.error(f"Error getting audit trail: {e}")
+            self.logger.error(f"Error getting audit trail: {e}")
             return []
     
     def get_user_audit_trail(self, username: str, limit: int = 100) -> List[Dict[str, Any]]:
@@ -602,7 +633,7 @@ class DynamoDBService:
             )
             return response.get('Items', [])
         except ClientError as e:
-            logger.error(f"Error getting user audit trail: {e}")
+            self.logger.error(f"Error getting user audit trail: {e}")
             return []
     
     # TOKEN OPERATIONS
@@ -623,7 +654,7 @@ class DynamoDBService:
             self.tokens_table.put_item(Item=item)
             return item
         except ClientError as e:
-            logger.error(f"Error creating token: {e}")
+            self.logger.error(f"Error creating token: {e}")
             raise
     
     def get_token(self, token_id: str) -> Optional[Dict[str, Any]]:
@@ -632,7 +663,7 @@ class DynamoDBService:
             response = self.tokens_table.get_item(Key={'token_id': token_id})
             return response.get('Item')
         except ClientError as e:
-            logger.error(f"Error getting token: {e}")
+            self.logger.error(f"Error getting token: {e}")
             return None
     
     def increment_token_usage(self, token_id: str) -> bool:
@@ -648,7 +679,7 @@ class DynamoDBService:
             )
             return True
         except ClientError as e:
-            logger.error(f"Error incrementing token usage: {e}")
+            self.logger.error(f"Error incrementing token usage: {e}")
             return False
     
     def delete_token(self, token_id: str) -> bool:
@@ -657,7 +688,7 @@ class DynamoDBService:
             self.tokens_table.delete_item(Key={'token_id': token_id})
             return True
         except ClientError as e:
-            logger.error(f"Error deleting token: {e}")
+            self.logger.error(f"Error deleting token: {e}")
             return False
     
     def get_user_tokens(self, username: str) -> List[Dict[str, Any]]:
@@ -670,7 +701,7 @@ class DynamoDBService:
             )
             return response.get('Items', [])
         except ClientError as e:
-            logger.error(f"Error getting user tokens: {e}")
+            self.logger.error(f"Error getting user tokens: {e}")
             return []
     
     # SYSTEM OPERATIONS
@@ -690,10 +721,10 @@ class DynamoDBService:
             # clear all tokens
             self._clear_table(self.tokens_table, 'token_id')
             
-            logger.info("Database reset completed")
+            self.logger.info("Database reset completed")
             
         except Exception as e:
-            logger.error(f"Error resetting database: {e}")
+            self.logger.error(f"Error resetting database: {e}")
             raise
     
     def _clear_table(self, table, hash_key: str, range_key: str = None):
@@ -721,7 +752,7 @@ class DynamoDBService:
                 done = start_key is None
                 
         except ClientError as e:
-            logger.error(f"Error clearing table: {e}")
+            self.logger.error(f"Error clearing table: {e}")
             raise
     
     # UTILITY METHODS
@@ -781,12 +812,12 @@ def init_db():
                 'role': UserRole.ADMIN.value
             })
             
-            logger.info(f"Created default admin user: {admin_user['username']}")
+            self.logger.info(f"Created default admin user: {admin_user['username']}")
         else:
-            logger.info("Admin user already exists")
+            self.logger.info("Admin user already exists")
             
     except Exception as e:
-        logger.error(f"Error initializing database: {e}")
+        self.logger.error(f"Error initializing database: {e}")
         raise
 
 
