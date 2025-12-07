@@ -44,7 +44,7 @@ class DynamoDBService:
     - TokenUsage: JWT token tracking
     """
     
-    def __init__(self, region_name: str = None, endpoint_url: str = None):
+    def __init__(self, region_name: Optional[str] = None, endpoint_url: Optional[str] = None):
         """
         Initialize DynamoDB service.
         

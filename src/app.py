@@ -432,7 +432,7 @@ def list_users():
 # ============================================================================
 
 @app.route('/health', methods=['GET'])
-@require_admin()
+# @require_admin()
 def health_check():
     """
     Simple liveness check (admin only).
@@ -442,7 +442,8 @@ def health_check():
     return jsonify({
         "status": "ok",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "service": "ECE461 Package Registry"
+        "service": "ECE461 Package Registry",
+        "description": "service reachable"
     }), 200
 
 @app.route('/health/components', methods=['GET'])
