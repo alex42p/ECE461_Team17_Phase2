@@ -25,6 +25,7 @@ CorsParams:     null
 ```
 
 If it errored, you probably saw some shit like this:
+
 ```
 Error: LinkageError occurred while loading main class software.amazon.dynamodb.services.local.main.ServerRunner java.lang.UnsupportedClassVersionError: software/amazon/dynamodb/services/local/main/ServerRunner has been compiled by a more recent version of the Java Runtime (class file version 61.0), this version of the Java Runtime only recognizes class file versions up to 55.0
 ```
