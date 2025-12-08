@@ -21,7 +21,7 @@ COPY run ./run
 COPY README.md ./
 
 # Expose port if app uses one (adjust as necessary)
-EXPOSE 8000
+EXPOSE 8080
 
 USER appuser
 
