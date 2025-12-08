@@ -54,12 +54,13 @@ class HealthMonitor:
     def check_database_health(self) -> ComponentHealth:
         """Check database connectivity and response time."""
         from database import get_db
+        from sqlalchemy import text
         
         start_time = time.time()
         try:
             session = get_db()
             # Simple query to test connection
-            session.execute("SELECT 1")
+            session.execute(text("SELECT 1"))
             session.close()
             
             response_time_ms = (time.time() - start_time) * 1000
