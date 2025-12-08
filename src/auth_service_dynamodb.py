@@ -380,7 +380,11 @@ if __name__ == '__main__':
     import os
     
     # initialize services
-    db_service = DynamoDBService()
+    db_service = DynamoDBService(
+        aws_access_key=os.environ.get('AWS_ACCESS_KEY_ID'),
+        aws_secret_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+        region_name=os.environ.get('AWS_REGION', 'us-east-2')
+    )
     auth_service = AuthService(
         db_service=db_service,
         secret_key=os.environ.get('SECRET_KEY', 'dev-secret-key'),
