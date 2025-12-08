@@ -26,4 +26,4 @@ EXPOSE 8080
 USER appuser
 
 # Default command — change to your app entrypoint as required
-CMD ["./run", "test"]
+CMD ["python", "src/app.py"]
