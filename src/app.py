@@ -6,7 +6,7 @@ This is the main application file with all security and observability features.
 import os
 import subprocess
 import tempfile
-# import shutil
+import shutil
 import json
 from pathlib import Path
 import logging 
@@ -721,10 +721,10 @@ def reset_system():
         init_db()
 
         # Clear package storage
-        # storage_path = storage.metadata_dir
-        # if storage_path.exists():
-        #     shutil.rmtree(storage_path)
-        #     storage_path.mkdir(parents=True)
+        storage_path = storage.metadata_dir
+        if storage_path.exists():
+            shutil.rmtree(storage_path)
+            storage_path.mkdir(parents=True)
 
         # TODO: update this to call method to iteratively/recursively delete all objects in S3 bucket
 
