@@ -126,8 +126,13 @@ import tree_score
 app = Flask(__name__)
 app.config['SECRET_KEY'] = FLASK_SECRET_KEY
 
-# Initialize storage
-storage = S3Storage("package_storage", AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME)
+# Initialize storage - use absolute path relative to app location to avoid path mismatches
+# This ensures files are saved and queried from the same location regardless of working directory
+app_dir = Path(__file__).parent  # src/
+project_root = app_dir.parent  # project root
+storage_dir_absolute = str(project_root / "package_storage")
+storage = S3Storage(storage_dir_absolute, AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME)
+logger.info(f"Storage initialized: metadata_dir = {storage.metadata_dir.resolve()}")
 
 # Initialize DynamoDB service 
 dynamodb_service = DynamoDBService(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT)
@@ -446,6 +451,59 @@ def get_tracks():
         }), 200
     except Exception as e:
         logger.exception('Error in get_tracks')
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/debug/paths', methods=['GET'])
+def debug_paths():
+    """Debug endpoint to check path resolution (for troubleshooting)."""
+    try:
+        base_path = Path(__file__).parent.parent
+        cwd = Path.cwd()
+        
+        storage_paths = {
+            "storage_metadata_dir": str(storage.metadata_dir.resolve()),
+            "storage_metadata_dir_exists": storage.metadata_dir.exists(),
+            "current_working_directory": str(cwd),
+            "app_file_location": str(Path(__file__).resolve()),
+            "project_root_from_file": str(base_path),
+            "possible_paths": {}
+        }
+        
+        # Check all possible paths
+        for rel_path in ["package_storage/metadata", "src/package_storage/metadata"]:
+            paths = {}
+            path1 = base_path / rel_path
+            paths["from_project_root"] = {
+                "path": str(path1.resolve()),
+                "exists": path1.exists(),
+                "file_count": len(list(path1.glob("*.json"))) if path1.exists() else 0
+            }
+            path2 = cwd / rel_path
+            paths["from_cwd"] = {
+                "path": str(path2.resolve()),
+                "exists": path2.exists(),
+                "file_count": len(list(path2.glob("*.json"))) if path2.exists() else 0
+            }
+            path3 = Path(rel_path).resolve()
+            paths["relative_resolved"] = {
+                "path": str(path3),
+                "exists": path3.exists(),
+                "file_count": len(list(path3.glob("*.json"))) if path3.exists() else 0
+            }
+            storage_paths["possible_paths"][rel_path] = paths
+        
+        # List actual files in storage.metadata_dir
+        if storage.metadata_dir.exists():
+            files = list(storage.metadata_dir.glob("*.json"))
+            storage_paths["files_in_storage_dir"] = [str(f.name) for f in files]
+            storage_paths["file_count_in_storage_dir"] = len(files)
+        else:
+            storage_paths["files_in_storage_dir"] = []
+            storage_paths["file_count_in_storage_dir"] = 0
+        
+        return jsonify(storage_paths), 200
+    except Exception as e:
+        logger.exception('Error in debug_paths')
         return jsonify({"error": str(e)}), 500
 
 @app.route('/health/components', methods=['GET'])
@@ -801,9 +859,11 @@ def query_artifacts():
         # Collect all possible storage paths (same logic as reset)
         storage_paths = set()
         
-        # Add storage.metadata_dir (resolved to absolute)
-        if storage.metadata_dir.exists():
-            storage_paths.add(storage.metadata_dir.resolve())
+        # ALWAYS add storage.metadata_dir (this is where files are saved)
+        # Resolve to absolute path to ensure we find it
+        primary_storage = storage.metadata_dir.resolve()
+        storage_paths.add(primary_storage)
+        logger.debug(f"Query artifacts: Primary storage path = {primary_storage}")
         
         # Add paths relative to project root
         for rel_path in [
@@ -812,16 +872,13 @@ def query_artifacts():
         ]:
             # Try from project root
             path1 = base_path / rel_path
-            if path1.exists():
-                storage_paths.add(path1.resolve())
+            storage_paths.add(path1.resolve())
             # Try from current working directory
             path2 = cwd / rel_path
-            if path2.exists():
-                storage_paths.add(path2.resolve())
+            storage_paths.add(path2.resolve())
             # Try relative to current working directory
             path3 = Path(rel_path).resolve()
-            if path3.exists():
-                storage_paths.add(path3)
+            storage_paths.add(path3)
         
         results = []
         seen_ids = set()  # Avoid duplicates
@@ -831,7 +888,9 @@ def query_artifacts():
         for storage_path in storage_paths:
             if storage_path.exists() and storage_path.is_dir():
                 try:
-                    for metadata_file in storage_path.glob("*.json"):
+                    files_found = list(storage_path.glob("*.json"))
+                    logger.debug(f"Query artifacts: Found {len(files_found)} files in {storage_path}")
+                    for metadata_file in files_found:
                         file_str = str(metadata_file.resolve())
                         if file_str in seen_files:
                             continue
@@ -856,17 +915,21 @@ def query_artifacts():
                 except Exception as e:
                     logger.debug(f"Error accessing {storage_path}: {e}")
         
+        logger.debug(f"Query artifacts: Total results = {len(results)}")
+        
         # Sort by created_at (newest first)
-        results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        if results:
+            results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         paginated_results = results[offset:offset + limit]
         
+        # Always return artifacts as a list (empty if no artifacts)
         return jsonify({
             "success": True,
             "count": len(paginated_results),
             "total": len(results),
             "offset": offset,
             "limit": limit,
-            "artifacts": paginated_results
+            "artifacts": paginated_results if paginated_results else []
         }), 200
     except Exception as e:
         logger.exception('Error in query_artifacts')
@@ -895,9 +958,9 @@ def reset_system():
         # Collect all possible storage paths
         storage_paths = set()
         
-        # Add storage.metadata_dir (resolved to absolute)
-        if storage.metadata_dir.exists():
-            storage_paths.add(storage.metadata_dir.resolve())
+        # ALWAYS add storage.metadata_dir (this is where files are saved)
+        # Resolve to absolute path to ensure we find it
+        storage_paths.add(storage.metadata_dir.resolve())
         
         # Add paths relative to project root
         for rel_path in [
@@ -906,16 +969,13 @@ def reset_system():
         ]:
             # Try from project root
             path1 = base_path / rel_path
-            if path1.exists():
-                storage_paths.add(path1.resolve())
+            storage_paths.add(path1.resolve())
             # Try from current working directory
             path2 = cwd / rel_path
-            if path2.exists():
-                storage_paths.add(path2.resolve())
+            storage_paths.add(path2.resolve())
             # Try relative to current working directory
             path3 = Path(rel_path).resolve()
-            if path3.exists():
-                storage_paths.add(path3)
+            storage_paths.add(path3)
         
         total_deleted = 0
         seen_files = set()  # Avoid deleting same file twice
@@ -953,12 +1013,23 @@ def reset_system():
         
         # Verify reset by checking if any artifacts remain
         remaining_count = 0
+        remaining_files = []
         for storage_path in storage_paths:
             if storage_path.exists() and storage_path.is_dir():
-                remaining_count += len(list(storage_path.glob("*.json")))
+                files = list(storage_path.glob("*.json"))
+                remaining_count += len(files)
+                if files:
+                    remaining_files.extend([str(f) for f in files])
         
         if remaining_count > 0:
-            logger.warning(f"Reset verification: {remaining_count} artifact files still remain after reset")
+            logger.warning(f"Reset verification: {remaining_count} artifact files still remain after reset: {remaining_files}")
+            # Try to delete them again
+            for file_path in remaining_files:
+                try:
+                    Path(file_path).unlink()
+                    logger.info(f"Force deleted remaining file: {file_path}")
+                except Exception as e:
+                    logger.error(f"Failed to force delete {file_path}: {e}")
         else:
             logger.info("Reset verification: All artifact files cleared successfully")
 
