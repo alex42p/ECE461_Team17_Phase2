@@ -78,7 +78,8 @@ class S3Storage:
         version: str,
         url: Optional[str] = None,
         scores: Optional[Dict[str, Any]] = None,
-        file_path: Optional[str] = None
+        file_path: Optional[str] = None,
+        artifact_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Save a package with metadata.
@@ -113,6 +114,7 @@ class S3Storage:
             "version": version,
             "url": url,
             "scores": scores or {},
+            "artifact_type": artifact_type or "model",
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         # If a file_path is provided, upload the file to S3 and update metadata
@@ -170,7 +172,7 @@ class S3Storage:
         Retrieve package by ID.
         
         Returns:
-            Package data or None if not found
+            Package data or None if not found or deleted
         """
         metadata_file = self.metadata_dir / f"{package_id}.json"
         try:
@@ -185,6 +187,10 @@ class S3Storage:
         try:
             with open(metadata_file, "r") as f:
                 data = json.load(f)
+                # Filter out deleted artifacts
+                if data.get("is_deleted", False):
+                    self.logger.info("get_package: package %s is deleted", package_id)
+                    return None
                 self.logger.debug("get_package: loaded %s", metadata_file.name)
                 return data
         except Exception as e:
@@ -222,6 +228,10 @@ class S3Storage:
                 with open(metadata_file, "r") as f:
                     package_data = json.load(f)
 
+                # Skip deleted artifacts
+                if package_data.get("is_deleted", False):
+                    continue
+
                 # Check if name matches pattern
                 if pattern.search(package_data.get("name", "")):
                     results.append(package_data)
@@ -238,4 +248,99 @@ class S3Storage:
 
         self.logger.debug("search_by_regex: found %d matches for pattern %s", len(results), regex_pattern)
         return results
+    
+    def get_packages_by_name(self, name: str) -> List[Dict[str, Any]]:
+        """
+        Get all packages with exact name match.
+        
+        Args:
+            name: Exact package name to search for
+        
+        Returns:
+            List of packages with matching name (excluding deleted)
+        """
+        results = []
+        for metadata_file in self.metadata_dir.glob("*.json"):
+            try:
+                with open(metadata_file, "r") as f:
+                    package_data = json.load(f)
+                    if package_data.get("name") == name and not package_data.get("is_deleted", False):
+                        results.append(package_data)
+            except Exception as e:
+                self.logger.warning("get_packages_by_name: error reading %s: %s", metadata_file.name, e)
+                continue
+        
+        # Sort by created_at (newest first)
+        results.sort(
+            key=lambda x: x.get("created_at", ""),
+            reverse=True
+        )
+        return results
+    
+    def query_packages(self, artifact_type: Optional[str] = None, name_filter: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        Query packages with optional filters.
+        
+        Args:
+            artifact_type: Filter by artifact type (model, dataset, code)
+            name_filter: Filter by name (partial match)
+            limit: Maximum number of results
+        
+        Returns:
+            List of matching packages (excluding deleted)
+        """
+        results = []
+        for metadata_file in self.metadata_dir.glob("*.json"):
+            try:
+                with open(metadata_file, "r") as f:
+                    package_data = json.load(f)
+                    
+                    # Skip deleted artifacts
+                    if package_data.get("is_deleted", False):
+                        continue
+                    
+                    # Apply filters
+                    if artifact_type and package_data.get("artifact_type") != artifact_type:
+                        continue
+                    if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
+                        continue
+                    
+                    results.append(package_data)
+            except Exception as e:
+                self.logger.warning("query_packages: error reading %s: %s", metadata_file.name, e)
+                continue
+        
+        # Sort by created_at (newest first)
+        results.sort(
+            key=lambda x: x.get("created_at", ""),
+            reverse=True
+        )
+        
+        return results[:limit]
+    
+    def generate_presigned_url(self, s3_key: str, expiration: int = 3600) -> Optional[str]:
+        """
+        Generate a pre-signed S3 URL for downloading an artifact.
+        
+        Args:
+            s3_key: S3 object key
+            expiration: URL expiration time in seconds (default 1 hour)
+        
+        Returns:
+            Pre-signed URL or None if bucket not configured
+        """
+        if not self.bucket_name:
+            return None
+        
+        try:
+            url = self.s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': self.bucket_name, 'Key': s3_key},
+                ExpiresIn=expiration
+            )
+            self.logger.debug("generate_presigned_url: generated URL for %s", s3_key)
+            return url
+        except Exception as e:
+            self.logger.exception("generate_presigned_url: failed to generate URL for %s: %s", s3_key, e)
+            return None
 
