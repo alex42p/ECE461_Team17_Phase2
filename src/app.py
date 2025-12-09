@@ -6,10 +6,11 @@ This is the main application file with all security and observability features.
 import os
 import subprocess
 import tempfile
-import shutil
+# import shutil
+import json
 from pathlib import Path
 import logging 
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Optional
 from flask import Flask, request, jsonify, render_template, g
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -34,7 +35,7 @@ if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT, FLASK
     # Create a Secrets Manager client
     # session = boto3.session.Session()
     client = boto3.client(
-        service_name='secretsmanager',
+        'secretsmanager',
         region_name=region_name
     )
 
@@ -47,14 +48,14 @@ if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT, FLASK
         # https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
         raise e
 
-    secret = get_secret_value_response['SecretString']
-    AWS_ACCESS_KEY = get_secret_value_response["AWS_ACCESS_KEY_ID"]
-    AWS_SECRET_KEY = get_secret_value_response["AWS_SECRET_ACCESS_KEY"]
-    AWS_REGION = get_secret_value_response["AWS_DEFAULT_REGION"]
-    DYNAMODB_ENDPOINT = get_secret_value_response["DYNAMODB_ENDPOINT"]
-    FLASK_SECRET_KEY = get_secret_value_response["FLASK_SECRET_KEY"]
-    GITHUB_TOKEN = get_secret_value_response["GITHUB_TOKEN"]
-    S3_BUCKET_NAME = get_secret_value_response["S3_BUCKET_NAME"]
+    secret_dict = json.loads(get_secret_value_response["SecretString"])
+    AWS_ACCESS_KEY = secret_dict["AWS_ACCESS_KEY_ID"]
+    AWS_SECRET_KEY = secret_dict["AWS_SECRET_ACCESS_KEY"]
+    AWS_REGION = secret_dict["AWS_DEFAULT_REGION"]
+    DYNAMODB_ENDPOINT = secret_dict["DYNAMODB_ENDPOINT"]
+    FLASK_SECRET_KEY = secret_dict["FLASK_SECRET_KEY"]
+    GITHUB_TOKEN = secret_dict["GITHUB_TOKEN"]
+    S3_BUCKET_NAME = secret_dict["S3_BUCKET_NAME"]
 
 # Import storage
 from storage import S3Storage
@@ -126,7 +127,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = FLASK_SECRET_KEY
 
 # Initialize storage
-storage = S3Storage(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME)
+storage = S3Storage("package_storage", AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME)
 
 # Initialize DynamoDB service 
 dynamodb_service = DynamoDBService(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT)
