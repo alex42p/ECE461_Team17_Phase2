@@ -616,7 +616,8 @@ def upload_package():
             name=name,
             version=version,
             url=url,
-            scores=scores
+            scores=scores,
+            artifact_type="model"  # Default to model for backward compatibility
         )
         logger.info('Package saved with id %s', package_info.get('id'))
 
@@ -739,6 +740,275 @@ def reset_system():
         return jsonify({"error": str(e)}), 500
 
 # ============================================================================
+# ARTIFACT ENDPOINTS (OpenAPI Spec Compliance)
+# ============================================================================
+
+@app.route('/artifact/<artifact_type>', methods=['POST'])
+@require_uploader()
+@rate_limit(max_requests=50, window_seconds=60)
+def upload_artifact(artifact_type: str):
+    """Upload/Ingest an artifact (requires uploader role)."""
+    try:
+        logger.info('Upload artifact called: type=%s by %s', artifact_type, request.remote_addr)
+        
+        is_valid, error_msg = validate_artifact_type(artifact_type)
+        if not is_valid:
+            return jsonify({"error": error_msg}), 400
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Request body required"}), 400
+
+        name = data.get("name")
+        version = data.get("version", "1.0.0")
+        url = data.get("url")
+        if not name:
+            return jsonify({"error": "Artifact name required"}), 400
+        if not url:
+            return jsonify({"error": "URL is required"}), 400
+
+        # Run scoring and check threshold
+        scores = run_scoring(url)
+        net_score = scores.get("net_score", {}).get("value", 0.0)
+        if net_score < 0.5:
+            return jsonify({
+                "error": "Artifact disqualified",
+                "message": f"Net score {net_score} is below minimum threshold of 0.5",
+                "scores": scores
+            }), 424
+
+        # Save artifact
+        package_info = storage.save_package(name=name, version=version, url=url, 
+                                           scores=scores, artifact_type=artifact_type)
+        current_user = get_current_user()
+        log_audit_action(package_info["id"], artifact_type, AuditAction.CREATE,
+                        current_user["username"] if current_user else None,
+                        artifact_name=name, artifact_version=version)
+
+        return jsonify({
+            "success": True,
+            "artifact_id": package_info["id"],
+            "name": name,
+            "version": version,
+            "url": url,
+            "scores": scores,
+            "message": "Artifact ingested and scored successfully"
+        }), 201
+
+    except Exception as e:
+        logger.exception('Error in upload_artifact')
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/artifacts/<artifact_type>/<artifact_id>', methods=['GET'])
+@require_auth()
+def get_artifact(artifact_type: str, artifact_id: str):
+    """Retrieve artifact by ID and type (requires authentication)."""
+    try:
+        package = storage.get_package(artifact_id)
+        if not package:
+            return jsonify({"error": f"Artifact {artifact_id} not found"}), 404
+        if package.get("artifact_type") != artifact_type:
+            return jsonify({"error": f"Artifact type mismatch"}), 400
+        
+        # Add download URL if available
+        s3_key = package.get("s3", {}).get("key")
+        if s3_key:
+            download_url = storage.generate_presigned_url(s3_key)
+            if download_url:
+                package["download_url"] = download_url
+        
+        return jsonify(package), 200
+    except Exception as e:
+        logger.exception('Error in get_artifact')
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/artifact/byName/<name>', methods=['GET'])
+@require_auth()
+def get_artifact_by_name(name: str):
+    """Get all artifacts with exact name match (requires authentication)."""
+    try:
+        packages = storage.get_packages_by_name(name)
+        return jsonify({"success": True, "count": len(packages), "name": name, "artifacts": packages}), 200
+    except Exception as e:
+        logger.exception('Error in get_artifact_by_name')
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/artifacts', methods=['POST'])
+@require_auth()
+@rate_limit(max_requests=100, window_seconds=60)
+def query_artifacts():
+    """Query artifacts with filters (requires authentication)."""
+    try:
+        data = request.get_json() or {}
+        offset = int(request.args.get('offset', 0))
+        limit = min(int(request.args.get('limit', 100)), 100)
+        
+        # Extract filters
+        query = data.get("ArtifactQuery", {})
+        name_filter = query.get("name") or data.get("Name")
+        artifact_type = query.get("type")
+        
+        results = storage.query_packages(artifact_type=artifact_type, name_filter=name_filter, 
+                                         limit=limit + offset)
+        paginated_results = results[offset:offset + limit]
+        
+        return jsonify({
+            "success": True,
+            "count": len(paginated_results),
+            "total": len(results),
+            "offset": offset,
+            "limit": limit,
+            "artifacts": paginated_results
+        }), 200
+    except Exception as e:
+        logger.exception('Error in query_artifacts')
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/artifact/byRegEx', methods=['POST'])
+@require_auth()
+@rate_limit(max_requests=100, window_seconds=60)
+def search_artifact_by_regex():
+    """Search artifacts by regex pattern (requires authentication)."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Request body required"}), 400
+        
+        regex_pattern = data.get("RegEx")
+        if not regex_pattern:
+            return jsonify({"error": "RegEx parameter is required"}), 400
+
+        results = storage.search_by_regex(regex_pattern)
+        return jsonify({
+            "success": True,
+            "count": len(results),
+            "regex_pattern": regex_pattern,
+            "artifacts": results
+        }), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.exception('Error in search_artifact_by_regex')
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/artifacts/<artifact_type>/<artifact_id>', methods=['PUT'])
+@require_uploader()
+def update_artifact(artifact_type: str, artifact_id: str):
+    """Update an artifact (requires uploader role)."""
+    try:
+        existing = storage.get_package(artifact_id)
+        if not existing:
+            return jsonify({"error": f"Artifact {artifact_id} not found"}), 404
+        if existing.get("artifact_type") != artifact_type:
+            return jsonify({"error": "Artifact type mismatch"}), 400
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Request body required"}), 400
+        
+        name = data.get("name")
+        if name and name != existing.get("name"):
+            return jsonify({"error": "Name mismatch"}), 400
+        
+        version = data.get("version", existing.get("version"))
+        url = data.get("url", existing.get("url"))
+        
+        # Re-run scoring if URL changed
+        scores = existing.get("scores", {})
+        if url and url != existing.get("url"):
+            scores = run_scoring(url)
+        
+        # Update and save
+        updated_data = existing.copy()
+        updated_data.update({
+            "version": version,
+            "url": url,
+            "scores": scores,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        metadata_file = storage.metadata_dir / f"{artifact_id}.json"
+        with open(metadata_file, "w") as f:
+            json.dump(updated_data, f, indent=2)
+        
+        current_user = get_current_user()
+        log_audit_action(artifact_id, artifact_type, AuditAction.UPDATE,
+                        current_user["username"] if current_user else None,
+                        changes={"version": version, "url": url})
+        
+        return jsonify({
+            "success": True,
+            "artifact_id": artifact_id,
+            "message": "Artifact updated successfully",
+            "artifact": updated_data
+        }), 200
+    except Exception as e:
+        logger.exception('Error in update_artifact')
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/artifacts/<artifact_type>/<artifact_id>', methods=['DELETE'])
+@require_uploader()
+def delete_artifact(artifact_type: str, artifact_id: str):
+    """Delete an artifact (soft delete, requires uploader role)."""
+    try:
+        existing = storage.get_package(artifact_id)
+        if not existing:
+            return jsonify({"error": f"Artifact {artifact_id} not found"}), 404
+        if existing.get("artifact_type") != artifact_type:
+            return jsonify({"error": "Artifact type mismatch"}), 400
+        
+        # Soft delete
+        existing["is_deleted"] = True
+        existing["deleted_at"] = datetime.now(timezone.utc).isoformat()
+        
+        metadata_file = storage.metadata_dir / f"{artifact_id}.json"
+        with open(metadata_file, "w") as f:
+            json.dump(existing, f, indent=2)
+        
+        current_user = get_current_user()
+        log_audit_action(artifact_id, artifact_type, AuditAction.DELETE,
+                        current_user["username"] if current_user else None)
+        
+        return jsonify({
+            "success": True,
+            "artifact_id": artifact_id,
+            "message": "Artifact deleted successfully"
+        }), 200
+    except Exception as e:
+        logger.exception('Error in delete_artifact')
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/artifact/<artifact_type>/<artifact_id>/download', methods=['GET'])
+@require_auth()
+def get_artifact_download_url(artifact_type: str, artifact_id: str):
+    """Get download URL for an artifact (requires authentication)."""
+    try:
+        package = storage.get_package(artifact_id)
+        if not package:
+            return jsonify({"error": f"Artifact {artifact_id} not found"}), 404
+        if package.get("artifact_type") != artifact_type:
+            return jsonify({"error": "Artifact type mismatch"}), 400
+        
+        download_url = (storage.generate_presigned_url(package.get("s3", {}).get("key")) 
+                        if package.get("s3", {}).get("key") else package.get("url"))
+        if not download_url:
+            return jsonify({"error": "No download URL available"}), 404
+        
+        current_user = get_current_user()
+        log_audit_action(artifact_id, artifact_type, AuditAction.DOWNLOAD,
+                        current_user["username"] if current_user else None)
+        
+        return jsonify({
+            "success": True,
+            "artifact_id": artifact_id,
+            "artifact_type": artifact_type,
+            "download_url": download_url
+        }), 200
+    except Exception as e:
+        logger.exception('Error in get_artifact_download_url')
+        return jsonify({"error": str(e)}), 500
+
+# ============================================================================
 # SENSITIVE MODEL PROTECTION
 # ============================================================================
 
@@ -809,6 +1079,31 @@ def execute_monitoring_script(
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+
+def validate_artifact_type(artifact_type: str) -> Tuple[bool, Optional[str]]:
+    """Validate artifact type. Returns (is_valid, error_message)."""
+    if artifact_type not in ['model', 'dataset', 'code']:
+        return False, f"Invalid artifact type: {artifact_type}. Must be one of: model, dataset, code"
+    return True, None
+
+def log_audit_action(artifact_id: str, artifact_type: str, action: AuditAction, 
+                    username: Optional[str] = None, **kwargs):
+    """Helper to log audit actions."""
+    session = get_db()
+    try:
+        audit_service = AuditService(session)
+        if action == AuditAction.CREATE:
+            audit_service.log_create(artifact_id, artifact_type, username, 
+                                   kwargs.get('artifact_name'), kwargs.get('artifact_version'))
+        elif action == AuditAction.UPDATE:
+            audit_service.log_update(artifact_id, artifact_type, username, kwargs.get('changes'))
+        elif action == AuditAction.DELETE:
+            audit_service.log_delete(artifact_id, artifact_type, username)
+        elif action == AuditAction.DOWNLOAD:
+            audit_service.log_download(artifact_id, artifact_type, username)
+        session.commit()
+    finally:
+        session.close()
 
 def run_scoring(url: str) -> Dict[str, Any]:
     """
