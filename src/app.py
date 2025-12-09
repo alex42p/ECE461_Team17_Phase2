@@ -453,59 +453,6 @@ def get_tracks():
         logger.exception('Error in get_tracks')
         return jsonify({"error": str(e)}), 500
 
-@app.route('/debug/paths', methods=['GET'])
-def debug_paths():
-    """Debug endpoint to check path resolution (for troubleshooting)."""
-    try:
-        base_path = Path(__file__).parent.parent
-        cwd = Path.cwd()
-        
-        storage_paths = {
-            "storage_metadata_dir": str(storage.metadata_dir.resolve()),
-            "storage_metadata_dir_exists": storage.metadata_dir.exists(),
-            "current_working_directory": str(cwd),
-            "app_file_location": str(Path(__file__).resolve()),
-            "project_root_from_file": str(base_path),
-            "possible_paths": {}
-        }
-        
-        # Check all possible paths
-        for rel_path in ["package_storage/metadata", "src/package_storage/metadata"]:
-            paths = {}
-            path1 = base_path / rel_path
-            paths["from_project_root"] = {
-                "path": str(path1.resolve()),
-                "exists": path1.exists(),
-                "file_count": len(list(path1.glob("*.json"))) if path1.exists() else 0
-            }
-            path2 = cwd / rel_path
-            paths["from_cwd"] = {
-                "path": str(path2.resolve()),
-                "exists": path2.exists(),
-                "file_count": len(list(path2.glob("*.json"))) if path2.exists() else 0
-            }
-            path3 = Path(rel_path).resolve()
-            paths["relative_resolved"] = {
-                "path": str(path3),
-                "exists": path3.exists(),
-                "file_count": len(list(path3.glob("*.json"))) if path3.exists() else 0
-            }
-            storage_paths["possible_paths"][rel_path] = paths
-        
-        # List actual files in storage.metadata_dir
-        if storage.metadata_dir.exists():
-            files = list(storage.metadata_dir.glob("*.json"))
-            storage_paths["files_in_storage_dir"] = [str(f.name) for f in files]
-            storage_paths["file_count_in_storage_dir"] = len(files)
-        else:
-            storage_paths["files_in_storage_dir"] = []
-            storage_paths["file_count_in_storage_dir"] = 0
-        
-        return jsonify(storage_paths), 200
-    except Exception as e:
-        logger.exception('Error in debug_paths')
-        return jsonify({"error": str(e)}), 500
-
 @app.route('/health/components', methods=['GET'])
 #@require_admin()
 def health_components():
@@ -850,55 +797,36 @@ def query_artifacts():
         name_filter = query.get("name") or data.get("Name")
         artifact_type = query.get("type")
         
-        # Query all packages from storage - ONLY check the canonical storage location
-        # This ensures we query from the exact same location where files are saved
-        storage_path = storage.metadata_dir.resolve()
-        logger.info(f"Query artifacts: Checking storage path = {storage_path}, exists = {storage_path.exists()}")
-        
+        # Query all packages from storage
         results = []
-        seen_ids = set()  # Avoid duplicates
-        
-        # Read all JSON files from the canonical storage location
-        if storage_path.exists() and storage_path.is_dir():
-            try:
-                for metadata_file in storage_path.glob("*.json"):
-                    try:
-                        with open(metadata_file, "r") as f:
-                            package_data = json.load(f)
-                            artifact_id = package_data.get("id")
-                            if artifact_id in seen_ids:
-                                continue
-                            seen_ids.add(artifact_id)
-                            
-                            if package_data.get("is_deleted", False):
-                                continue
-                            if artifact_type and package_data.get("artifact_type") != artifact_type:
-                                continue
-                            if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
-                                continue
-                            results.append(package_data)
-                    except Exception:
-                        continue
-            except Exception as e:
-                logger.debug(f"Error accessing {storage_path}: {e}")
-        
-        logger.debug(f"Query artifacts: Total results = {len(results)}")
+        storage_path = storage.metadata_dir
+        if storage_path.exists():
+            for metadata_file in storage_path.glob("*.json"):
+                try:
+                    with open(metadata_file, "r") as f:
+                        package_data = json.load(f)
+                        if package_data.get("is_deleted", False):
+                            continue
+                        if artifact_type and package_data.get("artifact_type") != artifact_type:
+                            continue
+                        if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
+                            continue
+                        results.append(package_data)
+                except Exception:
+                    continue
         
         # Sort by created_at (newest first)
         if results:
             results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         paginated_results = results[offset:offset + limit]
         
-        # Always return artifacts as a list (empty if no artifacts)
-        # Ensure artifacts field is always present and is a list
-        artifacts_list = paginated_results if paginated_results else []
         return jsonify({
             "success": True,
-            "count": len(artifacts_list),
+            "count": len(paginated_results),
             "total": len(results),
             "offset": offset,
             "limit": limit,
-            "artifacts": artifacts_list
+            "artifacts": paginated_results
         }), 200
     except Exception as e:
         logger.exception('Error in query_artifacts')
@@ -919,82 +847,25 @@ def reset_system():
         # Reinitialize with default admin
         init_db()
 
-        # Clear package storage - ONLY clear the canonical storage location
-        # This ensures we clear from the exact same location where files are saved and queried
-        storage_path = storage.metadata_dir.resolve()
-        logger.info(f"Reset: Clearing storage path = {storage_path}")
-        
-        total_deleted = 0
-        
-        # Delete all JSON files from the canonical storage location
-        # Use multiple passes to ensure all files are deleted
-        max_passes = 3
-        for pass_num in range(max_passes):
-            if not storage_path.exists():
-                break
-                
-            files_found = list(storage_path.glob("*.json"))
-            if not files_found:
-                break
-                
-            deleted_this_pass = 0
-            for metadata_file in files_found:
+        # Clear package storage
+        storage_path = storage.metadata_dir
+        if storage_path.exists():
+            for metadata_file in storage_path.glob("*.json"):
                 try:
                     metadata_file.unlink()
-                    deleted_this_pass += 1
-                    total_deleted += 1
-                    logger.debug(f"Deleted {metadata_file}")
-                except Exception as e:
-                    logger.warning(f"Failed to delete {metadata_file}: {e}")
-            
-            if deleted_this_pass == 0:
-                break  # No files deleted this pass, stop trying
-                
-            logger.info(f"Reset pass {pass_num + 1}: Deleted {deleted_this_pass} files")
-        
-        if total_deleted > 0:
-            logger.info(f"Reset: Total deleted {total_deleted} artifact files from {storage_path}")
+                except Exception:
+                    pass
         
         # Also clear DynamoDB if it exists
         try:
             dynamodb_service.reset_database()
-            logger.info("DynamoDB reset completed")
-        except Exception as e:
-            logger.warning(f"DynamoDB reset failed (may not be configured): {e}")
-        
-        # Final verification - check if any artifacts remain
-        remaining_count = 0
-        if storage_path.exists() and storage_path.is_dir():
-            remaining_files = list(storage_path.glob("*.json"))
-            remaining_count = len(remaining_files)
-            if remaining_count > 0:
-                logger.warning(f"Reset verification: {remaining_count} artifact files still remain after reset")
-                # Force delete any remaining files
-                for metadata_file in remaining_files:
-                    try:
-                        metadata_file.unlink()
-                        logger.info(f"Force deleted remaining file: {metadata_file}")
-                        total_deleted += 1
-                    except Exception as e:
-                        logger.error(f"Failed to force delete {metadata_file}: {e}")
-            else:
-                logger.info("Reset verification: All artifact files cleared successfully")
-        
-        logger.info(f"Reset: Final count - deleted {total_deleted} files, {remaining_count} remaining")
-        
-        # Final check - ensure directory is truly empty
-        if storage_path.exists() and storage_path.is_dir():
-            final_check = list(storage_path.glob("*.json"))
-            if final_check:
-                logger.error(f"Reset FAILED: {len(final_check)} files still exist after all deletion attempts: {[str(f) for f in final_check]}")
-            else:
-                logger.info("Reset SUCCESS: Storage directory is confirmed empty")
+        except Exception:
+            pass
 
         logger.info('System reset completed')
         return jsonify({
             "success": True,
-            "message": "System reset to initial state",
-            "deleted_count": total_deleted
+            "message": "System reset to initial state"
         }), 200
 
     except Exception as e:
