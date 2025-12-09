@@ -28,7 +28,7 @@ class MetricResult:
         Short identifier for the metric (e.g., "license", "bus_factor").
     value : MetricValue
         Normalized float in [0,1], or a {str -> float} map for size_score.
-    details : dict[str, Any]
+    details : Dict[str, Any]
         Optional, human/machine-readable context about how the score was computed.
         Keep this small and JSON-serializable.
     latency_ms : int
@@ -55,7 +55,7 @@ class Metric(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def compute(self, metadata: dict[str, Any]) -> MetricResult:
+    def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         """Compute this metric for the given Hugging Face model URL."""
         raise NotImplementedError
 

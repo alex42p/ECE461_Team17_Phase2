@@ -9,7 +9,7 @@ transparency.
 
 from __future__ import annotations
 import time
-from typing import Any
+from typing import Any, Dict
 
 from metric import Metric, MetricResult, clamp
 
@@ -21,7 +21,7 @@ class RampUpTimeMetric(Metric):
     def name(self) -> str:
         return "ramp_up_time"
 
-    def compute(self, metadata: dict[str, Any]) -> MetricResult:
+    def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         t0 = time.time()
         score = 0.0 
         

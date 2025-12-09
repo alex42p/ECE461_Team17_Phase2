@@ -9,7 +9,7 @@ import tempfile
 import shutil
 from pathlib import Path
 import logging 
-from typing import Any
+from typing import Any, Dict, Tuple
 from flask import Flask, request, jsonify, render_template, g
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -714,7 +714,7 @@ def execute_monitoring_script(
     uploader_username: str,
     downloader_username: str,
     zip_file_path: str
-) -> tuple[bool, str]:
+) -> Tuple[bool, str]:
     """
     Execute JavaScript monitoring script for sensitive models.
     
@@ -776,7 +776,7 @@ def execute_monitoring_script(
 # HELPER FUNCTIONS
 # ============================================================================
 
-def run_scoring(url: str) -> dict[str, Any]:
+def run_scoring(url: str) -> Dict[str, Any]:
     """
     Run scoring metrics on a Hugging Face model URL.
     Integrates with Phase 1 scoring system.

@@ -13,7 +13,7 @@ Returns a per-device score dictionary and latency in milliseconds.
 
 import time
 from metric import Metric, MetricResult, clamp
-from typing import Any
+from typing import Any, Dict
 
 
 class SizeScoreMetric(Metric):
@@ -34,7 +34,7 @@ class SizeScoreMetric(Metric):
     def name(self) -> str:
         return "size_score"
 
-    def compute(self, metadata: dict[str, Any]) -> MetricResult:
+    def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         t0 = time.time()
         try:
             storage_size = float(metadata["hf_metadata"].get("size_mb", 0))

@@ -10,7 +10,7 @@ also records the computation latency in milliseconds.
 
 from __future__ import annotations
 import time
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 
 from metric import Metric, MetricResult
 
@@ -55,7 +55,7 @@ class LicenseMetric(Metric):
     def name(self) -> str:
         return "license"
 
-    def compute(self, metadata: dict[str, Any]) -> MetricResult:
+    def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         """
         Compute license score from API metadata dict.
         """

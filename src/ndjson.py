@@ -1,6 +1,6 @@
 # mypy: ignore-errors
 import json
-from typing import Any, Dict
+from typing import Any, Dict, List
 from entities import HFModel
 
 class NDJSONEncoder:
@@ -9,7 +9,7 @@ class NDJSONEncoder:
     @staticmethod
     def encode(model: HFModel, phase_one: bool = False) -> str:
         """Return one NDJSON line for a model + its metric results."""
-        record: dict[str, Any] = {
+        record: Dict[str, Any] = {
             "name": model.name,
             "category": model.model_url.category,
         }
@@ -65,10 +65,10 @@ class NDJSONEncoder:
         return json.dumps(record)
 
     @staticmethod
-    def encode_all(models: list[HFModel], phase_one: bool = False) -> str:
+    def encode_all(models: List[HFModel], phase_one: bool = False) -> str:
         """Return full NDJSON (one line per model)."""
         return "\n".join(NDJSONEncoder.encode(m, phase_one) for m in models)
 
     @staticmethod
-    def print_records(models: list[HFModel], phase_one: bool = False) -> None:
+    def print_records(models: List[HFModel], phase_one: bool = False) -> None:
         print(NDJSONEncoder.encode_all(models, phase_one))

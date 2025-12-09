@@ -1,6 +1,6 @@
 from entities import HFModel
 import requests 
-from typing import Any
+from typing import Any, Dict
 from urllib.parse import urlparse
 
 def extract_repo_id(url: str) -> str:
@@ -34,7 +34,7 @@ def extract_dataset_id(url: str) -> str:
         return path_parts[1]  # top-level dataset
     return f"{path_parts[1]}/{path_parts[2]}"  # org/dataset
 
-def fetch_repo_metadata(model: HFModel) -> dict[str, Any]:
+def fetch_repo_metadata(model: HFModel) -> Dict[str, Any]:
     """
     Fetch metadata for an HFModelURL instance via the Hugging Face API.
     """
@@ -115,7 +115,7 @@ def fetch_repo_metadata(model: HFModel) -> dict[str, Any]:
         return {"": None}
 
 
-def fetch_dataset_metadata(dataset_url: str) -> dict[str, Any]:
+def fetch_dataset_metadata(dataset_url: str) -> Dict[str, Any]:
     """
     Fetch metadata for a Hugging Face dataset repo.
     """

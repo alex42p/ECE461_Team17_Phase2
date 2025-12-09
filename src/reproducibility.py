@@ -7,7 +7,7 @@ import time
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 import logging
 from metric import Metric, MetricResult
 
@@ -126,7 +126,7 @@ class ReproducibilityMetric(Metric):
                 latency_ms=max(1, int((time.time() - t0) * 1000))
             )
     
-    def _extract_demo_code(self, readme: str) -> list[str]:
+    def _extract_demo_code(self, readme: str) -> List[str]:
         """Extract all Python code blocks from README and return as list.
 
         Returns a list of raw code-block strings (may include prompts or expected output).
@@ -134,9 +134,9 @@ class ReproducibilityMetric(Metric):
         if not readme:
             return []
 
-        code_blocks: list[str] = []
+        code_blocks: List[str] = []
         in_code_block = False
-        current_block: list[str] = []
+        current_block: List[str] = []
 
         for line in readme.split('\n'):
             if line.strip().startswith('```python'):
@@ -162,7 +162,7 @@ class ReproducibilityMetric(Metric):
         # Detect Python repl prompts
         prompt_lines = [l for l in lines if l.lstrip().startswith('>>>') or l.lstrip().startswith('...')]
         if prompt_lines:
-            cleaned_lines: list[str] = []
+            cleaned_lines: List[str] = []
             for l in prompt_lines:
                 stripped = l.lstrip()
                 if stripped.startswith('>>>'):
@@ -191,7 +191,7 @@ class ReproducibilityMetric(Metric):
         cleaned = '\n'.join(code_like).strip()
         return cleaned
     
-    def _run_code_safely(self, code: str) -> tuple[bool, str]:
+    def _run_code_safely(self, code: str) -> Tuple[bool, str]:
         """
         Run code in isolated subprocess with strict limits.
         Returns (success: bool, output: str)

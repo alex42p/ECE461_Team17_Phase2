@@ -7,7 +7,7 @@ Uses GitHub GraphQL API for efficient querying.
 import os
 import time
 import requests
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from metric import Metric, MetricResult
 import logging
 from pathlib import Path
@@ -96,12 +96,12 @@ class ReviewednessMetric(Metric):
                 latency_ms=max(1, int((time.time() - t0) * 1000))
             )
     
-    def _parse_github_url(self, url: str) -> tuple[str, str]:
+    def _parse_github_url(self, url: str) -> Tuple[str, str]:
         """Extract owner/repo from GitHub URL."""
         parts = url.rstrip('/').split('/')
         return parts[-2], parts[-1]
     
-    def _fetch_pr_stats(self, owner: str, repo: str) -> tuple[int, int]:
+    def _fetch_pr_stats(self, owner: str, repo: str) -> Tuple[int, int]:
         """
         Fetch PR review statistics using GitHub GraphQL API.
         Returns (commits_via_pr, total_commits)

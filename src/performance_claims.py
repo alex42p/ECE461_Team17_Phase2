@@ -22,7 +22,7 @@ class PerformanceClaimsMetric(Metric):
     def name(self) -> str:
         return "performance_claims"
 
-    def compute(self, metadata: dict[str, Any]) -> MetricResult:
+    def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         t0 = time.time()
         score = 0.0
 

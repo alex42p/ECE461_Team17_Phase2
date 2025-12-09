@@ -9,7 +9,7 @@ a single score in [0,1] with equal weights (0.5 each).
 
 from __future__ import annotations
 import re, time
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from metric import Metric, MetricResult, clamp
 
@@ -36,7 +36,7 @@ class DatasetAndCodeMetric(Metric):
     def name(self) -> str:
         return "dataset_and_code_score"
 
-    def compute(self, metadata: dict[str, Any]) -> MetricResult:
+    def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         t0 = time.time()
 
         # dataset evidence
@@ -76,7 +76,7 @@ class DatasetAndCodeMetric(Metric):
             latency_ms=latency,
         )
     
-    def _contains_keywords(self, text: str, patterns: list[str]) -> bool:
+    def _contains_keywords(self, text: str, patterns: List[str]) -> bool:
         """Check if text contains any of the given keyword regex patterns."""
         if not text:
             return False

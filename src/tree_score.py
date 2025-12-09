@@ -5,7 +5,7 @@ TreeScore metric - average quality score of parent models in lineage graph.
 
 import time
 import re
-from typing import Any, Dict, Set, Optional
+from typing import Any, Dict, Set, Optional, List
 from metric import Metric, MetricResult
 import logging
 from pathlib import Path
@@ -103,7 +103,7 @@ class TreeScoreMetric(Metric):
                 latency_ms=max(1, int((time.time() - t0) * 1000))
             )
     
-    def _extract_parent_models(self, metadata: Dict[str, Any]) -> list[str]:
+    def _extract_parent_models(self, metadata: Dict[str, Any]) -> List[str]:
         """
         Extract parent model IDs from config.json.
         

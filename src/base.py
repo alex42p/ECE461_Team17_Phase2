@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
+from typing import List, Set, Optional
 
 @dataclass
 class UrlItem:
@@ -23,18 +24,18 @@ class CodeRepoURL(UrlItem):
 
 @dataclass
 class HFModelURL(UrlItem):
-    datasets: list[HFDatasetURL]
-    code: list[CodeRepoURL]
+    datasets: List[HFDatasetURL]
+    code: List[CodeRepoURL]
 
     def __init__(self, url: str,
-                 datasets: list[HFDatasetURL] | None = None,
-                 code: list[CodeRepoURL] | None = None):
+                 datasets: Optional[List[HFDatasetURL]] = None,
+                 code: Optional[List[CodeRepoURL]] = None):
         super().__init__(url, "MODEL")
         self.datasets = datasets or []
         self.code = code or []
 
 
-def parse_url_file(path: Path) -> list[HFModelURL]:
+def parse_url_file(path: Path) -> List[HFModelURL]:
     """
     Parse a text file where each line = code, dataset, model.
     Code and dataset may be empty. Models are required.
@@ -43,8 +44,8 @@ def parse_url_file(path: Path) -> list[HFModelURL]:
     if not path.exists():
         raise FileNotFoundError(f"File not found: {path}")
 
-    models: list[HFModelURL] = []
-    seen_datasets: set[str] = set()
+    models: List[HFModelURL] = []
+    seen_datasets: Set[str] = set()
 
     with path.open("r", encoding="utf-8") as f:
         for line in f:

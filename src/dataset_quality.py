@@ -8,7 +8,7 @@ a final value in [0,1], where higher scores reflect better-documented, more
 popular, and more usable datasets.
 """
 
-from typing import Any
+from typing import Any, Dict
 import time
 from metric import Metric, MetricResult
 from huggingface import fetch_dataset_metadata
@@ -30,7 +30,7 @@ class DatasetQualityMetric(Metric):
     def name(self) -> str:
         return "dataset_quality"
 
-    def compute(self, metadata: dict[str, Any]) -> MetricResult:
+    def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         t0 = time.time()
 
         dataset_url = metadata["hf_metadata"].get("dataset_url", "")

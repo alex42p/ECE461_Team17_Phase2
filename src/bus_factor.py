@@ -21,7 +21,7 @@ class BusFactorMetric(Metric):
     def name(self) -> str:
         return "bus_factor"
 
-    def compute(self, metadata: dict[str, Any]) -> MetricResult:
+    def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         t0 = time.time()
         score = 0.0
         

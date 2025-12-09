@@ -1,10 +1,10 @@
 import concurrent.futures
 import time
-from typing import List, Any
+from typing import List, Any, Dict
 from metric import Metric, MetricResult
 
 def compute_all_metrics(
-    context: dict[str, Any],
+    context: Dict[str, Any],
     metrics: List[Metric],
     max_workers: int = 8
     ) -> List[MetricResult]:

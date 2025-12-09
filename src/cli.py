@@ -2,7 +2,7 @@ import os
 import sys
 from pathlib import Path
 import subprocess
-from typing import Any
+from typing import Any, List, Dict
 import argparse
 import tester
 import log
@@ -52,12 +52,12 @@ def score(url_file: str) -> None:
     url_path = Path(url_file)
     url_objs = parse_url_file(url_path)
 
-    models: list[HFModel] = []
+    models: List[HFModel] = []
     for u in url_objs:
         # wrap HFModelURL into HFModel
         model = HFModel(model_url=u)
         hf_metadata = fetch_repo_metadata(model)  # fills model.repo_id + model.metadata
-        nof_code_ds: dict[str, Any] = dict()
+        nof_code_ds: Dict[str, Any] = dict()
         nof_code_ds["nof_code"] = len(model.model_url.code)
         nof_code_ds["nof_ds"] = len(model.model_url.datasets)
 
@@ -141,7 +141,7 @@ def main() -> None:
     parser.add_argument("command", nargs="?", help="'test' to run tests, 'install' for dependencies, or path to URL file")
 
     # Use provided argv list or fall back to process argv
-    raw_args: list[str] = sys.argv[1:] # list(argv) if argv is not None else 
+    raw_args: List[str] = sys.argv[1:] # list(argv) if argv is not None else 
     args = parser.parse_args(raw_args)
 
     # If user ran `run -h`, argparse will handle printing help/exit

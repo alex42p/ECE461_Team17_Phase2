@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Dict, List
 from base import HFModelURL
 from metric import MetricResult
 from urllib.parse import urlparse
@@ -10,8 +10,8 @@ class HFModel():
     def __init__(self, model_url: HFModelURL):
         self.model_url = model_url
         self.repo_id = self.extract_repo_id()
-        self.metadata: dict[str, Any] = {}
-        self.metric_scores: dict[str, MetricResult] = {}
+        self.metadata: Dict[str, Any] = {}
+        self.metric_scores: Dict[str, MetricResult] = {}
 
     @property
     def name(self) -> str:
@@ -29,13 +29,13 @@ class HFModel():
     
     def extract_model_name(self) -> str:
         """Extract the short model name from the HF URL."""
-        parts: list[str] = urlparse(self.model_url.url).path.strip("/").split("/")
+        parts: List[str] = urlparse(self.model_url.url).path.strip("/").split("/")
         if "tree" in parts:
             idx = parts.index("tree")
             if idx > 0:
                 return parts[idx - 1]
         return parts[-1] if parts else self.model_url.url
 
-    def add_results(self, metric_results: list[MetricResult]) -> None:
+    def add_results(self, metric_results: List[MetricResult]) -> None:
         self.metric_scores.update({r.name: r for r in metric_results})
 
