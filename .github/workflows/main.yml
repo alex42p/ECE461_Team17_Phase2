@@ -42,3 +42,29 @@ jobs:
 
       - name: Run Tests
         run: python -m pytest --cov=src --cov-report=term-missing tests/
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write   # REQUIRED to push back to repo
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # Important: allows merging full history
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge main -> prod
+        run: |
+          git checkout prod
+          git pull origin prod
+          git merge origin/main --no-ff -m "Automated merge from main to prod"
+          git push origin prod
