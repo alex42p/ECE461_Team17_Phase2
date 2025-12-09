@@ -9,11 +9,20 @@ jobs:
     runs-on: ubuntu-latest
 
     env: # add necessary environment variables here
-      # GEN_AI_STUDIO_API_KEY: ${{ secrets.GEN_AI_STUDIO_API_KEY }}
-      # HF_TOKEN: ${{ secrets.HF_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       LOG_FILE: src/app.log
       LOG_LEVEL: '0'
+      # leave these blank - only here to pass tests in GH Actions
+      FLASK_SECRET_KEY: ''
+      AWS_ACCESS_KEY_ID: ''
+      AWS_SECRET_ACCESS_KEY: ''
+      AWS_DEFAULT_REGION: 'us-east-2'
+      S3_BUCKET_NAME: 'team17-model-storage'
+      AWS_COGNITO_USER_POOL_ID: ''
+      AWS_COGNITO_CLIENT_ID: ''
+      AWS_COGNITO_CLIENT_SECRET: ''
+      DYNAMODB_ENDPOINT: 'http://localhost:8000'
+      DYNAMOODB_TABLE_PREFIX: ''
 
     steps:
       - uses: actions/checkout@v4
