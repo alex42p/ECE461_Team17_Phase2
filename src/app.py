@@ -253,29 +253,12 @@ def authenticate():
                 "max_api_calls": 1000
             }), 200
         else:
-            # # Legacy authentication
-            # session = get_db()
-            # auth_service = AuthService(session)
-            # result = auth_service.authenticate(username, password)
-
-            # if not result:
-            #     logger.info('Authentication failed for user %s', username)
-            #     return jsonify({
-            #         "error": "Authentication failed",
-            #         "message": "Invalid username or password"
-            #     }), 401
-
-            # logger.info('User %s authenticated via legacy auth', username)
-            # return jsonify({
-            #     "token": result["token"],
-            #     "user": {
-            #         "name": result["username"],
-            #         "role": result["role"]
-            #     },
-            #     "expires_at": result["expires_at"],
-            #     "max_api_calls": 1000
-            # }), 200
-            pass
+            # Legacy authentication - not implemented in this phase
+            logger.warning('Legacy authentication not available')
+            return jsonify({
+                "error": "Authentication unavailable",
+                "message": "Cognito authentication not configured"
+            }), 503
 
     except Exception as e:
         logger.exception('Error in authenticate endpoint')
@@ -329,26 +312,12 @@ def create_user():
                 "user": user
             }), 201
         else:
-            # # Legacy user creation
-            # try:
-            #     role = UserRole(role_str)
-            # except ValueError:
-            #     logger.warning('Invalid legacy role provided: %s', role_str)
-            #     return jsonify({
-            #         "error": f"Invalid role. Must be one of: {[r.value for r in UserRole]}"
-            #     }), 400
-
-            # session = get_db()
-            # auth_service = AuthService(session)
-            # user = auth_service.create_user(username, password, role)
-            # session.commit()
-
-            # logger.info('Created legacy user %s', username)
-            # return jsonify({
-            #     "success": True,
-            #     "user": user.to_dict()
-            # }), 201
-            pass
+            # Legacy user creation - not implemented in this phase
+            logger.warning('Legacy user creation not available')
+            return jsonify({
+                "error": "User creation unavailable",
+                "message": "Cognito authentication not configured"
+            }), 503
 
     except ValueError as e:
         logger.exception('ValueError in create_user')
@@ -370,32 +339,12 @@ def delete_user(username: str):
             cognito_auth.delete_user(username)
             logger.info('Deleted Cognito user %s', username)
         else:
-            # Legacy delete
-            # current_user_data = get_current_user()
-            # if not current_user_data:
-            #     logger.warning('Delete user attempted without authentication')
-            #     return jsonify({"error": "Authentication required"}), 401
-
-            # session = get_db()
-            # auth_service = AuthService(session)
-
-            # requesting_user = session.query(User).filter_by(
-            #     username=current_user_data["username"]
-            # ).first()
-
-            # if not requesting_user:
-            #     logger.warning('Requesting user not found in delete_user')
-            #     return jsonify({"error": "User not found"}), 404
-
-            # success = auth_service.delete_user(username, requesting_user)
-
-            # if not success:
-            #     logger.info('Insufficient permissions for user deletion: %s', current_user_data.get('username'))
-            #     return jsonify({"error": "Insufficient permissions"}), 403
-
-            # session.commit()
-            # logger.info('Deleted legacy user %s', username)
-            pass
+            # Legacy delete - not implemented in this phase
+            logger.warning('Legacy user deletion not available')
+            return jsonify({
+                "error": "User deletion unavailable",
+                "message": "Cognito authentication not configured"
+            }), 503
 
         return jsonify({"success": True, "message": f"User {username} deleted"}), 200
 
@@ -415,18 +364,19 @@ def list_users():
         if USE_COGNITO:
             # Get users from Cognito
             users = cognito_auth.list_users()
-        # else:
-        #     # Legacy list users
-        #     session = get_db()
-        #     auth_service = AuthService(session)
-        #     users = auth_service.list_users()
-
-        logger.debug('Found %s users', len(users))
-        return jsonify({
-            "success": True,
-            "count": len(users),
-            "users": users
-        }), 200
+            logger.debug('Found %s users', len(users))
+            return jsonify({
+                "success": True,
+                "count": len(users),
+                "users": users
+            }), 200
+        else:
+            # Legacy list users - not implemented in this phase
+            logger.warning('Legacy user listing not available')
+            return jsonify({
+                "error": "User listing unavailable",
+                "message": "Cognito authentication not configured"
+            }), 503
 
     except Exception as e:
         logger.exception('Error in list_users')
@@ -542,9 +492,10 @@ def get_download_history(artifact_type: str, artifact_id: str):
         logger.debug('Found %s downloads for %s', len(downloads), artifact_id)
 
         return jsonify({
-            "success": True,
             "artifact_id": artifact_id,
+            "artifact_type": artifact_type,
             "count": len(downloads),
+            "limit": limit,
             "downloads": downloads
         }), 200
 
@@ -566,7 +517,7 @@ def get_audit_statistics():
 
         return jsonify({
             "success": True,
-            **stats
+            "statistics": stats
         }), 200
 
     except Exception as e:
