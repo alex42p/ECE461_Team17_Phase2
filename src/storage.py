@@ -344,4 +344,41 @@ class S3Storage:
         except Exception as e:
             self.logger.exception("generate_presigned_url: failed to generate URL for %s: %s", s3_key, e)
             return None
+    
+    def clear_all_s3_objects(self):
+        """
+        Delete all objects from the S3 bucket (for reset endpoint).
+        """
+        if not self.bucket_name:
+            self.logger.warning("clear_all_s3_objects: S3 bucket name not configured, skipping S3 cleanup")
+            return
+        
+        try:
+            self.logger.info("clear_all_s3_objects: starting cleanup of S3 bucket %s", self.bucket_name)
+            
+            # List all objects in the bucket
+            paginator = self.s3_client.get_paginator('list_objects_v2')
+            pages = paginator.paginate(Bucket=self.bucket_name)
+            
+            deleted_count = 0
+            for page in pages:
+                if 'Contents' in page:
+                    objects = [{'Key': obj['Key']} for obj in page['Contents']]
+                    if objects:
+                        # Delete objects in batches (max 1000 per request)
+                        response = self.s3_client.delete_objects(
+                            Bucket=self.bucket_name,
+                            Delete={'Objects': objects}
+                        )
+                        deleted_count += len(objects)
+                        if 'Errors' in response and response['Errors']:
+                            for error in response['Errors']:
+                                self.logger.error("clear_all_s3_objects: failed to delete %s: %s", 
+                                                 error.get('Key'), error.get('Message'))
+            
+            self.logger.info("clear_all_s3_objects: deleted %d objects from S3 bucket %s", deleted_count, self.bucket_name)
+            
+        except Exception as e:
+            self.logger.exception("clear_all_s3_objects: error clearing S3 bucket %s: %s", self.bucket_name, e)
+            # Don't raise - allow reset to continue even if S3 cleanup fails
 
