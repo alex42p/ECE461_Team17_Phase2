@@ -2,16 +2,16 @@
 Simple storage system for MVP.
 Stores package metadata in JSON files.
 """
-# mypy: ignore-errors
+# pyright: reportGeneralTypeIssues=false
 
 import os
 import json
 import hashlib
-import boto3
+import boto3 # type: ignore
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 class S3Storage:
     """Simple file-based storage for packages."""
@@ -183,7 +183,7 @@ class S3Storage:
             self.logger.exception("get_package: failed to read %s: %s", metadata_file.name, e)
             return None
     
-    def search_by_regex(self, regex_pattern: str) -> list[Dict[str, Any]]:
+    def search_by_regex(self, regex_pattern: str) -> List[Dict[str, Any]]:
         """
         Search packages by regex pattern on name.
         
