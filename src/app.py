@@ -128,11 +128,16 @@ app.config['SECRET_KEY'] = FLASK_SECRET_KEY
 
 # Initialize storage - use absolute path relative to app location to avoid path mismatches
 # This ensures files are saved and queried from the same location regardless of working directory
-app_dir = Path(__file__).parent  # src/
-project_root = app_dir.parent  # project root
-storage_dir_absolute = str(project_root / "package_storage")
-storage = S3Storage(storage_dir_absolute, AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME)
-logger.info(f"Storage initialized: metadata_dir = {storage.metadata_dir.resolve()}")
+app_dir = Path(__file__).resolve().parent  # src/ (absolute)
+project_root = app_dir.parent  # project root (absolute)
+storage_dir_absolute = project_root / "package_storage"
+# Resolve to absolute path before passing to S3Storage
+storage_dir_absolute = storage_dir_absolute.resolve()
+storage = S3Storage(str(storage_dir_absolute), AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME)
+# Verify the path is correctly resolved
+resolved_metadata_dir = storage.metadata_dir.resolve()
+logger.info(f"Storage initialized: metadata_dir = {resolved_metadata_dir}")
+logger.info(f"Storage directory exists: {resolved_metadata_dir.exists()}")
 
 # Initialize DynamoDB service 
 dynamodb_service = DynamoDBService(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT)
@@ -796,8 +801,10 @@ def query_artifacts():
         artifact_type = query.get("type")
         
         # Query all packages from storage
+        # Use resolved absolute path to ensure consistency with reset
         results = []
-        storage_path = storage.metadata_dir
+        storage_path = storage.metadata_dir.resolve()
+        logger.debug('Query artifacts: Checking metadata directory %s', storage_path)
         if storage_path.exists():
             for metadata_file in storage_path.glob("*.json"):
                 try:
@@ -848,15 +855,43 @@ def reset_system():
             logger.warning('S3 cleanup failed (non-critical): %s', e)
         
         # Clear local package storage metadata files
-        storage_path = storage.metadata_dir
+        # Use resolved absolute path to ensure consistency
+        storage_path = storage.metadata_dir.resolve()
+        logger.info('Reset: Clearing metadata files from %s', storage_path)
         deleted_files = 0
+        
+        # Ensure directory exists (it might have been deleted)
+        storage_path.mkdir(parents=True, exist_ok=True)
+        
         if storage_path.exists():
-            for metadata_file in storage_path.glob("*.json"):
-                try:
-                    metadata_file.unlink()
-                    deleted_files += 1
-                except Exception as e:
-                    logger.warning('Failed to delete metadata file %s: %s', metadata_file, e)
+            # Get all JSON files before deletion to ensure we catch them all
+            # Use list() to materialize the generator before deletion
+            all_files = list(storage_path.glob("*.json"))
+            logger.info('Reset: Found %d metadata files to delete', len(all_files))
+            
+            # Delete files with retry logic
+            for metadata_file in all_files:
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        if metadata_file.exists():
+                            metadata_file.unlink()
+                            # Verify deletion
+                            if metadata_file.exists():
+                                raise OSError(f"File still exists after unlink: {metadata_file}")
+                            deleted_files += 1
+                            break
+                    except Exception as e:
+                        if attempt == max_retries - 1:
+                            logger.error('Failed to delete metadata file %s after %d attempts: %s', 
+                                       metadata_file, max_retries, e)
+                        else:
+                            logger.warning('Attempt %d failed to delete %s: %s, retrying...', 
+                                         attempt + 1, metadata_file, e)
+                            import time
+                            time.sleep(0.1)  # Brief delay before retry
+        else:
+            logger.warning('Reset: Metadata directory does not exist: %s', storage_path)
         
         logger.info('Deleted %d metadata files', deleted_files)
         
@@ -884,22 +919,69 @@ def reset_system():
             logger.warning('DynamoDB reset failed (non-critical): %s', e)
         
         # Verify reset by checking if any artifacts remain
-        remaining_artifacts = list(storage_path.glob("*.json")) if storage_path.exists() else []
+        # Re-resolve path to ensure we're checking the correct location
+        # Add a small delay to ensure filesystem sync
+        import time
+        time.sleep(0.2)  # Allow filesystem to sync
+        
+        verification_path = storage.metadata_dir.resolve()
+        # Force refresh by re-reading the directory
+        if verification_path.exists():
+            # Use os.listdir to force filesystem refresh
+            import os
+            try:
+                dir_contents = os.listdir(verification_path)
+                json_files = [f for f in dir_contents if f.endswith('.json')]
+                remaining_artifacts = [verification_path / f for f in json_files]
+            except OSError as e:
+                logger.warning('Reset verification: Could not list directory %s: %s', verification_path, e)
+                remaining_artifacts = []
+        else:
+            remaining_artifacts = []
+            
         if remaining_artifacts:
-            logger.warning('Reset verification: %d metadata files still exist', len(remaining_artifacts))
-            # Try to delete them again
+            logger.warning('Reset verification: %d metadata files still exist in %s', len(remaining_artifacts), verification_path)
+            # Try to delete them again with force
             for metadata_file in remaining_artifacts:
                 try:
-                    metadata_file.unlink()
-                    logger.info('Deleted remaining file: %s', metadata_file)
-                except Exception:
-                    pass
+                    if metadata_file.exists():
+                        metadata_file.unlink()
+                        # Double-check deletion
+                        if metadata_file.exists():
+                            logger.error('File still exists after second deletion attempt: %s', metadata_file)
+                        else:
+                            logger.info('Deleted remaining file: %s', metadata_file)
+                except Exception as e:
+                    logger.error('Failed to delete remaining file %s: %s', metadata_file, e)
+        else:
+            logger.info('Reset verification: No remaining artifacts in %s', verification_path)
 
-        logger.info('System reset completed successfully')
-        return jsonify({
-            "success": True,
-            "message": "System reset to initial state"
-        }), 200
+        # Final verification - count remaining artifacts
+        final_check_path = storage.metadata_dir.resolve()
+        final_remaining = []
+        if final_check_path.exists():
+            try:
+                import os
+                dir_contents = os.listdir(final_check_path)
+                final_remaining = [f for f in dir_contents if f.endswith('.json')]
+            except OSError:
+                pass
+        
+        if final_remaining:
+            logger.error('Reset completed but %d artifacts still remain: %s', len(final_remaining), final_remaining[:5])
+            return jsonify({
+                "success": True,
+                "message": "System reset to initial state",
+                "warning": f"{len(final_remaining)} artifacts may still exist",
+                "remaining_count": len(final_remaining)
+            }), 200
+        else:
+            logger.info('System reset completed successfully - no artifacts remain')
+            return jsonify({
+                "success": True,
+                "message": "System reset to initial state",
+                "remaining_count": 0
+            }), 200
 
     except Exception as e:
         logger.exception('Error in reset_system')

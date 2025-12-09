@@ -27,8 +27,12 @@ class S3Storage:
         """Initialize storage directory."""
         self.__name__ = "S3Storage"
         # Always resolve to absolute path to avoid working directory issues
-        self.storage_dir = Path(storage_dir).resolve()
-        self.metadata_dir = self.storage_dir / "metadata"
+        # Convert to Path if it's a string, then resolve to absolute
+        if isinstance(storage_dir, str):
+            self.storage_dir = Path(storage_dir).resolve()
+        else:
+            self.storage_dir = Path(storage_dir).resolve()
+        self.metadata_dir = (self.storage_dir / "metadata").resolve()
         self.s3_client = boto3.client(
             's3', 
             aws_access_key_id=aws_access_key,
