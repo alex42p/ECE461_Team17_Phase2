@@ -443,15 +443,13 @@ def health_check():
 @app.route('/tracks', methods=['GET'])
 def get_tracks():
     """Get system tracks (for autograder tracking)."""
-    try:
-        # Always return Access Control Track for autograder
-        tracks = ["Access Control Track"]
-        return jsonify({
-            "tracks": tracks
-        }), 200
-    except Exception as e:
-        logger.exception('Error in get_tracks')
-        return jsonify({"error": str(e)}), 500
+    # Always return Access Control Track for autograder
+    # This endpoint should never fail - it's critical for autograder
+    tracks = ["Access Control Track"]
+    logger.info('Tracks endpoint called, returning: %s', tracks)
+    return jsonify({
+        "tracks": tracks
+    }), 200
 
 @app.route('/health/components', methods=['GET'])
 #@require_admin()
@@ -841,28 +839,63 @@ def reset_system():
     """
     try:
         logger.info('System reset requested by %s', request.remote_addr)
-        # Reset database
-        db_manager.reset_database()
-
-        # Reinitialize with default admin
-        init_db()
-
-        # Clear package storage
+        
+        # Clear S3 objects first (before clearing metadata)
+        try:
+            storage.clear_all_s3_objects()
+            logger.info('S3 objects cleared successfully')
+        except Exception as e:
+            logger.warning('S3 cleanup failed (non-critical): %s', e)
+        
+        # Clear local package storage metadata files
         storage_path = storage.metadata_dir
+        deleted_files = 0
         if storage_path.exists():
             for metadata_file in storage_path.glob("*.json"):
                 try:
                     metadata_file.unlink()
-                except Exception:
-                    pass
+                    deleted_files += 1
+                except Exception as e:
+                    logger.warning('Failed to delete metadata file %s: %s', metadata_file, e)
+        
+        logger.info('Deleted %d metadata files', deleted_files)
+        
+        # Reset database
+        try:
+            db_manager.reset_database()
+            logger.info('Database reset completed')
+        except Exception as e:
+            logger.error('Database reset failed: %s', e)
+            raise
+        
+        # Reinitialize with default admin
+        try:
+            init_db()
+            logger.info('Database reinitialized with default admin')
+        except Exception as e:
+            logger.error('Database reinitialization failed: %s', e)
+            raise
         
         # Also clear DynamoDB if it exists
         try:
             dynamodb_service.reset_database()
-        except Exception:
-            pass
+            logger.info('DynamoDB reset completed')
+        except Exception as e:
+            logger.warning('DynamoDB reset failed (non-critical): %s', e)
+        
+        # Verify reset by checking if any artifacts remain
+        remaining_artifacts = list(storage_path.glob("*.json")) if storage_path.exists() else []
+        if remaining_artifacts:
+            logger.warning('Reset verification: %d metadata files still exist', len(remaining_artifacts))
+            # Try to delete them again
+            for metadata_file in remaining_artifacts:
+                try:
+                    metadata_file.unlink()
+                    logger.info('Deleted remaining file: %s', metadata_file)
+                except Exception:
+                    pass
 
-        logger.info('System reset completed')
+        logger.info('System reset completed successfully')
         return jsonify({
             "success": True,
             "message": "System reset to initial state"
