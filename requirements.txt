@@ -13,8 +13,8 @@ psycopg2-binary
 psycopg2
 boto3
 botocore
-selenium
 python-dateutil
 structlog
-transformers[torch] # takes ~6GB of space, including its dependencies
+transformers # takes ~6GB of space, including its dependencies
+pyarrow>=10.0.0,<18.0.0  # Versions with prebuilt wheels
 datasets
