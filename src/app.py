@@ -435,6 +435,21 @@ def health_check():
         "description": "service reachable"
     }), 200
 
+@app.route('/tracks', methods=['GET'])
+def get_tracks():
+    """Get system tracks (for autograder tracking)."""
+    try:
+        tracks = []
+        # Check if access control is enabled
+        if USE_COGNITO:
+            tracks.append("Access Control Track")
+        return jsonify({
+            "tracks": tracks
+        }), 200
+    except Exception as e:
+        logger.exception('Error in get_tracks')
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/health/components', methods=['GET'])
 #@require_admin()
 def health_components():
@@ -779,21 +794,35 @@ def query_artifacts():
         name_filter = query.get("name") or data.get("Name")
         artifact_type = query.get("type")
         
-        # Query all packages from storage
+        # Query all packages from storage - check all possible locations
         results = []
-        for metadata_file in storage.metadata_dir.glob("*.json"):
-            try:
-                with open(metadata_file, "r") as f:
-                    package_data = json.load(f)
-                    if package_data.get("is_deleted", False):
+        storage_paths = [
+            storage.metadata_dir,
+            Path("package_storage/metadata"),
+            Path("src/package_storage/metadata")
+        ]
+        
+        seen_ids = set()  # Avoid duplicates
+        for storage_path in storage_paths:
+            if storage_path.exists():
+                for metadata_file in storage_path.glob("*.json"):
+                    try:
+                        with open(metadata_file, "r") as f:
+                            package_data = json.load(f)
+                            artifact_id = package_data.get("id")
+                            if artifact_id in seen_ids:
+                                continue
+                            seen_ids.add(artifact_id)
+                            
+                            if package_data.get("is_deleted", False):
+                                continue
+                            if artifact_type and package_data.get("artifact_type") != artifact_type:
+                                continue
+                            if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
+                                continue
+                            results.append(package_data)
+                    except Exception:
                         continue
-                    if artifact_type and package_data.get("artifact_type") != artifact_type:
-                        continue
-                    if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
-                        continue
-                    results.append(package_data)
-            except Exception:
-                continue
         
         # Sort by created_at (newest first)
         results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
@@ -826,19 +855,35 @@ def reset_system():
         # Reinitialize with default admin
         init_db()
 
-        # Clear package storage - delete all JSON files
-        storage_path = storage.metadata_dir
-        if storage_path.exists():
-            for metadata_file in storage_path.glob("*.json"):
-                try:
-                    metadata_file.unlink()
-                except Exception:
-                    pass
-            # Also clear DynamoDB if it exists
-            try:
-                dynamodb_service.reset_database()
-            except Exception:
-                pass
+        # Clear package storage - delete all JSON files from all possible locations
+        storage_paths = [
+            storage.metadata_dir,
+            Path("package_storage/metadata"),
+            Path("src/package_storage/metadata")
+        ]
+        
+        total_deleted = 0
+        for storage_path in storage_paths:
+            if storage_path.exists():
+                deleted_count = 0
+                for metadata_file in storage_path.glob("*.json"):
+                    try:
+                        metadata_file.unlink()
+                        deleted_count += 1
+                        total_deleted += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to delete {metadata_file}: {e}")
+                if deleted_count > 0:
+                    logger.info(f"Deleted {deleted_count} metadata files from {storage_path}")
+        
+        # Also clear DynamoDB if it exists
+        try:
+            dynamodb_service.reset_database()
+            logger.info("DynamoDB reset completed")
+        except Exception as e:
+            logger.warning(f"DynamoDB reset failed (may not be configured): {e}")
+        
+        logger.info(f"Total deleted {total_deleted} artifact files")
 
         logger.info('System reset completed')
         return jsonify({
