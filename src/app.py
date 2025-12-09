@@ -851,69 +851,37 @@ def query_artifacts():
         name_filter = query.get("name") or data.get("Name")
         artifact_type = query.get("type")
         
-        # Query all packages from storage - check all possible locations
-        # Use exact same path resolution logic as reset endpoint
-        base_path = Path(__file__).parent.parent  # Go up from src/ to project root
-        cwd = Path.cwd()  # Current working directory
-        
-        # Collect all possible storage paths (same logic as reset)
-        storage_paths = set()
-        
-        # ALWAYS add storage.metadata_dir (this is where files are saved)
-        # Resolve to absolute path to ensure we find it
-        primary_storage = storage.metadata_dir.resolve()
-        storage_paths.add(primary_storage)
-        logger.debug(f"Query artifacts: Primary storage path = {primary_storage}")
-        
-        # Add paths relative to project root
-        for rel_path in [
-            "package_storage/metadata",
-            "src/package_storage/metadata"
-        ]:
-            # Try from project root
-            path1 = base_path / rel_path
-            storage_paths.add(path1.resolve())
-            # Try from current working directory
-            path2 = cwd / rel_path
-            storage_paths.add(path2.resolve())
-            # Try relative to current working directory
-            path3 = Path(rel_path).resolve()
-            storage_paths.add(path3)
+        # Query all packages from storage - ONLY check the canonical storage location
+        # This ensures we query from the exact same location where files are saved
+        storage_path = storage.metadata_dir.resolve()
+        logger.debug(f"Query artifacts: Checking storage path = {storage_path}")
         
         results = []
         seen_ids = set()  # Avoid duplicates
-        seen_files = set()  # Avoid reading same file twice
         
-        # Read all JSON files from all found paths
-        for storage_path in storage_paths:
-            if storage_path.exists() and storage_path.is_dir():
-                try:
-                    files_found = list(storage_path.glob("*.json"))
-                    logger.debug(f"Query artifacts: Found {len(files_found)} files in {storage_path}")
-                    for metadata_file in files_found:
-                        file_str = str(metadata_file.resolve())
-                        if file_str in seen_files:
-                            continue
-                        seen_files.add(file_str)
-                        try:
-                            with open(metadata_file, "r") as f:
-                                package_data = json.load(f)
-                                artifact_id = package_data.get("id")
-                                if artifact_id in seen_ids:
-                                    continue
-                                seen_ids.add(artifact_id)
-                                
-                                if package_data.get("is_deleted", False):
-                                    continue
-                                if artifact_type and package_data.get("artifact_type") != artifact_type:
-                                    continue
-                                if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
-                                    continue
-                                results.append(package_data)
-                        except Exception:
-                            continue
-                except Exception as e:
-                    logger.debug(f"Error accessing {storage_path}: {e}")
+        # Read all JSON files from the canonical storage location
+        if storage_path.exists() and storage_path.is_dir():
+            try:
+                for metadata_file in storage_path.glob("*.json"):
+                    try:
+                        with open(metadata_file, "r") as f:
+                            package_data = json.load(f)
+                            artifact_id = package_data.get("id")
+                            if artifact_id in seen_ids:
+                                continue
+                            seen_ids.add(artifact_id)
+                            
+                            if package_data.get("is_deleted", False):
+                                continue
+                            if artifact_type and package_data.get("artifact_type") != artifact_type:
+                                continue
+                            if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
+                                continue
+                            results.append(package_data)
+                    except Exception:
+                        continue
+            except Exception as e:
+                logger.debug(f"Error accessing {storage_path}: {e}")
         
         logger.debug(f"Query artifacts: Total results = {len(results)}")
         
