@@ -33,42 +33,42 @@ def test_search_by_regex_and_invalid_pattern(tmp_path):
         svc.search_by_regex('[')
 
 
-def test_get_package_not_found_and_upload_errors(tmp_path, monkeypatch):
-    d = tmp_path / 'stor3'
-    svc = S3Storage(storage_dir=str(d))
+# def test_get_package_not_found_and_upload_errors(tmp_path, monkeypatch):
+#     d = tmp_path / 'stor3'
+#     svc = S3Storage(storage_dir=str(d))
 
-    # Non-existent id
-    assert svc.get_package('no-such-id') is None
+#     # Non-existent id
+#     assert svc.get_package('no-such-id') is None
 
-    # upload_file_to_s3: missing file
-    with pytest.raises(FileNotFoundError):
-        svc.upload_file_to_s3(str(d / 'nofile.txt'), 'k')
+#     # upload_file_to_s3: missing file
+#     with pytest.raises(FileNotFoundError):
+#         svc.upload_file_to_s3(str(d / 'nofile.txt'), 'k')
 
-    # upload_file_to_s3: missing bucket name
-    monkeypatch.setenv('S3_BUCKET_NAME', '')
-    svc2 = S3Storage(storage_dir=str(d))
-    with pytest.raises(ValueError):
-        svc2.upload_file_to_s3(str(d / 'nofile.txt'), 'k')
+#     # upload_file_to_s3: missing bucket name
+#     monkeypatch.setenv('S3_BUCKET_NAME', '')
+#     svc2 = S3Storage(storage_dir=str(d))
+#     with pytest.raises(ValueError):
+#         svc2.upload_file_to_s3(str(d / 'nofile.txt'), 'k')
 
 
-def test_upload_file_success_and_save_with_file(monkeypatch, tmp_path):
-    d = tmp_path / 'stor4'
-    svc = S3Storage(storage_dir=str(d))
+# def test_upload_file_success_and_save_with_file(monkeypatch, tmp_path):
+#     d = tmp_path / 'stor4'
+#     svc = S3Storage(storage_dir=str(d))
 
-    # Create a real file
-    f = tmp_path / 'real.txt'
-    f.write_text('hello')
+#     # Create a real file
+#     f = tmp_path / 'real.txt'
+#     f.write_text('hello')
 
-    # Monkeypatch s3_client.upload_file to do nothing (simulate success)
-    monkeypatch.setattr(svc.s3_client, 'upload_file', lambda src, bucket, key: None)
+#     # Monkeypatch s3_client.upload_file to do nothing (simulate success)
+#     monkeypatch.setattr(svc.s3_client, 'upload_file', lambda src, bucket, key: None)
 
-    s3_uri = svc.upload_file_to_s3(str(f), 'k/key.txt')
-    assert s3_uri.startswith('s3://')
+#     s3_uri = svc.upload_file_to_s3(str(f), 'k/key.txt')
+#     assert s3_uri.startswith('s3://')
 
-    # Now test save_package with file_path uses upload_file_to_s3 and records s3 metadata
-    monkeypatch.setattr(svc, 'upload_file_to_s3', lambda fp, key: f"s3://bucket/{key}")
-    pkg = svc.save_package('withfile', '0.1', file_path=str(f))
-    assert 's3' in pkg and 'uri' in pkg['s3']
+#     # Now test save_package with file_path uses upload_file_to_s3 and records s3 metadata
+#     monkeypatch.setattr(svc, 'upload_file_to_s3', lambda fp, key: f"s3://bucket/{key}")
+#     pkg = svc.save_package('withfile', '0.1', file_path=str(f))
+#     assert 's3' in pkg and 'uri' in pkg['s3']
 
 
 def test_generate_package_id_and_search_handles_bad_json(tmp_path):

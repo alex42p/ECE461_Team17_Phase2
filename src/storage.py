@@ -16,18 +16,25 @@ from typing import Optional, Dict, Any, List
 class S3Storage:
     """Simple file-based storage for packages."""
     
-    def __init__(self, storage_dir: str = "package_storage"):
+    def __init__(
+            self, 
+            storage_dir: str = "package_storage",
+            aws_access_key: Optional[str] = None,
+            aws_secret_key: Optional[str] = None,
+            aws_region: Optional[str] = None,
+            bucket_name: Optional[str] = None
+    ):
         """Initialize storage directory."""
         self.__name__ = "S3Storage"
         self.storage_dir = Path(storage_dir)
         self.metadata_dir = self.storage_dir / "metadata"
         self.s3_client = boto3.client(
             's3', 
-            aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
-            aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-            region_name=os.environ.get('AWS_REGION')
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            region_name=aws_region,
         )
-        self.bucket_name = os.environ.get('S3_BUCKET_NAME', 'team-17-model-storage')
+        self.bucket_name = bucket_name
         
         # Create directories if they don't exist
         self.metadata_dir.mkdir(parents=True, exist_ok=True)

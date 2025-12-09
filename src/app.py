@@ -20,8 +20,41 @@ AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION")
 DYNAMODB_ENDPOINT = os.environ.get("DYNAMODB_ENDPOINT")
-FLASK_SECRET_KEY = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
+FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", 'dev-secret-key-change-in-production')
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
+
+if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT, FLASK_SECRET_KEY, GITHUB_TOKEN, S3_BUCKET_NAME]):
+    # Load from AWS Secrets Manager if .env not available
+    import boto3
+    from botocore.exceptions import ClientError
+    secret_name = "ece461-secrets"
+    region_name = "us-east-2"
+
+    # Create a Secrets Manager client
+    # session = boto3.session.Session()
+    client = boto3.client(
+        service_name='secretsmanager',
+        region_name=region_name
+    )
+
+    try:
+        get_secret_value_response = client.get_secret_value(
+            SecretId=secret_name
+        )
+    except ClientError as e:
+        # For a list of exceptions thrown, see
+        # https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
+        raise e
+
+    secret = get_secret_value_response['SecretString']
+    AWS_ACCESS_KEY = get_secret_value_response["AWS_ACCESS_KEY_ID"]
+    AWS_SECRET_KEY = get_secret_value_response["AWS_SECRET_ACCESS_KEY"]
+    AWS_REGION = get_secret_value_response["AWS_DEFAULT_REGION"]
+    DYNAMODB_ENDPOINT = get_secret_value_response["DYNAMODB_ENDPOINT"]
+    FLASK_SECRET_KEY = get_secret_value_response["FLASK_SECRET_KEY"]
+    GITHUB_TOKEN = get_secret_value_response["GITHUB_TOKEN"]
+    S3_BUCKET_NAME = get_secret_value_response["S3_BUCKET_NAME"]
 
 # Import storage
 from storage import S3Storage
@@ -93,7 +126,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = FLASK_SECRET_KEY
 
 # Initialize storage
-storage = S3Storage()
+storage = S3Storage(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME)
 
 # Initialize DynamoDB service 
 dynamodb_service = DynamoDBService(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT)
