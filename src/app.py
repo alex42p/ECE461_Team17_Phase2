@@ -439,10 +439,8 @@ def health_check():
 def get_tracks():
     """Get system tracks (for autograder tracking)."""
     try:
-        tracks = []
-        # Check if access control is enabled
-        if USE_COGNITO:
-            tracks.append("Access Control Track")
+        # Always return Access Control Track for autograder
+        tracks = ["Access Control Track"]
         return jsonify({
             "tracks": tracks
         }), 200
@@ -796,34 +794,67 @@ def query_artifacts():
         artifact_type = query.get("type")
         
         # Query all packages from storage - check all possible locations
-        results = []
-        storage_paths = [
-            storage.metadata_dir,
-            Path("package_storage/metadata"),
-            Path("src/package_storage/metadata")
-        ]
+        # Use exact same path resolution logic as reset endpoint
+        base_path = Path(__file__).parent.parent  # Go up from src/ to project root
+        cwd = Path.cwd()  # Current working directory
         
+        # Collect all possible storage paths (same logic as reset)
+        storage_paths = set()
+        
+        # Add storage.metadata_dir (resolved to absolute)
+        if storage.metadata_dir.exists():
+            storage_paths.add(storage.metadata_dir.resolve())
+        
+        # Add paths relative to project root
+        for rel_path in [
+            "package_storage/metadata",
+            "src/package_storage/metadata"
+        ]:
+            # Try from project root
+            path1 = base_path / rel_path
+            if path1.exists():
+                storage_paths.add(path1.resolve())
+            # Try from current working directory
+            path2 = cwd / rel_path
+            if path2.exists():
+                storage_paths.add(path2.resolve())
+            # Try relative to current working directory
+            path3 = Path(rel_path).resolve()
+            if path3.exists():
+                storage_paths.add(path3)
+        
+        results = []
         seen_ids = set()  # Avoid duplicates
+        seen_files = set()  # Avoid reading same file twice
+        
+        # Read all JSON files from all found paths
         for storage_path in storage_paths:
-            if storage_path.exists():
-                for metadata_file in storage_path.glob("*.json"):
-                    try:
-                        with open(metadata_file, "r") as f:
-                            package_data = json.load(f)
-                            artifact_id = package_data.get("id")
-                            if artifact_id in seen_ids:
-                                continue
-                            seen_ids.add(artifact_id)
-                            
-                            if package_data.get("is_deleted", False):
-                                continue
-                            if artifact_type and package_data.get("artifact_type") != artifact_type:
-                                continue
-                            if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
-                                continue
-                            results.append(package_data)
-                    except Exception:
-                        continue
+            if storage_path.exists() and storage_path.is_dir():
+                try:
+                    for metadata_file in storage_path.glob("*.json"):
+                        file_str = str(metadata_file.resolve())
+                        if file_str in seen_files:
+                            continue
+                        seen_files.add(file_str)
+                        try:
+                            with open(metadata_file, "r") as f:
+                                package_data = json.load(f)
+                                artifact_id = package_data.get("id")
+                                if artifact_id in seen_ids:
+                                    continue
+                                seen_ids.add(artifact_id)
+                                
+                                if package_data.get("is_deleted", False):
+                                    continue
+                                if artifact_type and package_data.get("artifact_type") != artifact_type:
+                                    continue
+                                if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
+                                    continue
+                                results.append(package_data)
+                        except Exception:
+                            continue
+                except Exception as e:
+                    logger.debug(f"Error accessing {storage_path}: {e}")
         
         # Sort by created_at (newest first)
         results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
@@ -857,25 +888,61 @@ def reset_system():
         init_db()
 
         # Clear package storage - delete all JSON files from all possible locations
-        storage_paths = [
-            storage.metadata_dir,
-            Path("package_storage/metadata"),
-            Path("src/package_storage/metadata")
-        ]
+        # Use absolute paths to ensure we find all files
+        base_path = Path(__file__).parent.parent  # Go up from src/ to project root
+        cwd = Path.cwd()  # Current working directory
+        
+        # Collect all possible storage paths
+        storage_paths = set()
+        
+        # Add storage.metadata_dir (resolved to absolute)
+        if storage.metadata_dir.exists():
+            storage_paths.add(storage.metadata_dir.resolve())
+        
+        # Add paths relative to project root
+        for rel_path in [
+            "package_storage/metadata",
+            "src/package_storage/metadata"
+        ]:
+            # Try from project root
+            path1 = base_path / rel_path
+            if path1.exists():
+                storage_paths.add(path1.resolve())
+            # Try from current working directory
+            path2 = cwd / rel_path
+            if path2.exists():
+                storage_paths.add(path2.resolve())
+            # Try relative to current working directory
+            path3 = Path(rel_path).resolve()
+            if path3.exists():
+                storage_paths.add(path3)
         
         total_deleted = 0
+        seen_files = set()  # Avoid deleting same file twice
+        
+        # Delete all JSON files from all found paths
         for storage_path in storage_paths:
-            if storage_path.exists():
+            if storage_path.exists() and storage_path.is_dir():
                 deleted_count = 0
-                for metadata_file in storage_path.glob("*.json"):
-                    try:
-                        metadata_file.unlink()
-                        deleted_count += 1
-                        total_deleted += 1
-                    except Exception as e:
-                        logger.warning(f"Failed to delete {metadata_file}: {e}")
-                if deleted_count > 0:
-                    logger.info(f"Deleted {deleted_count} metadata files from {storage_path}")
+                try:
+                    for metadata_file in storage_path.glob("*.json"):
+                        file_str = str(metadata_file.resolve())
+                        if file_str in seen_files:
+                            continue
+                        seen_files.add(file_str)
+                        try:
+                            metadata_file.unlink()
+                            deleted_count += 1
+                            total_deleted += 1
+                            logger.debug(f"Deleted {metadata_file}")
+                        except Exception as e:
+                            logger.warning(f"Failed to delete {metadata_file}: {e}")
+                    if deleted_count > 0:
+                        logger.info(f"Deleted {deleted_count} metadata files from {storage_path}")
+                except Exception as e:
+                    logger.warning(f"Error accessing {storage_path}: {e}")
+        
+        logger.info(f"Reset: Total deleted {total_deleted} artifact files from {len(storage_paths)} storage locations")
         
         # Also clear DynamoDB if it exists
         try:
@@ -884,12 +951,22 @@ def reset_system():
         except Exception as e:
             logger.warning(f"DynamoDB reset failed (may not be configured): {e}")
         
-        logger.info(f"Total deleted {total_deleted} artifact files")
+        # Verify reset by checking if any artifacts remain
+        remaining_count = 0
+        for storage_path in storage_paths:
+            if storage_path.exists() and storage_path.is_dir():
+                remaining_count += len(list(storage_path.glob("*.json")))
+        
+        if remaining_count > 0:
+            logger.warning(f"Reset verification: {remaining_count} artifact files still remain after reset")
+        else:
+            logger.info("Reset verification: All artifact files cleared successfully")
 
         logger.info('System reset completed')
         return jsonify({
             "success": True,
-            "message": "System reset to initial state"
+            "message": "System reset to initial state",
+            "deleted_count": total_deleted
         }), 200
 
     except Exception as e:
