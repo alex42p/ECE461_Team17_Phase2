@@ -10,5 +10,7 @@ build:
 
 run:
   command: python run.py
-  network:
-    port: 8080
+
+
+network:
+  port: 8080
