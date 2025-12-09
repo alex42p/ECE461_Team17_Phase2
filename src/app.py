@@ -891,13 +891,15 @@ def query_artifacts():
         paginated_results = results[offset:offset + limit]
         
         # Always return artifacts as a list (empty if no artifacts)
+        # Ensure artifacts field is always present and is a list
+        artifacts_list = paginated_results if paginated_results else []
         return jsonify({
             "success": True,
-            "count": len(paginated_results),
+            "count": len(artifacts_list),
             "total": len(results),
             "offset": offset,
             "limit": limit,
-            "artifacts": paginated_results if paginated_results else []
+            "artifacts": artifacts_list
         }), 200
     except Exception as e:
         logger.exception('Error in query_artifacts')
@@ -918,59 +920,29 @@ def reset_system():
         # Reinitialize with default admin
         init_db()
 
-        # Clear package storage - delete all JSON files from all possible locations
-        # Use absolute paths to ensure we find all files
-        base_path = Path(__file__).parent.parent  # Go up from src/ to project root
-        cwd = Path.cwd()  # Current working directory
-        
-        # Collect all possible storage paths
-        storage_paths = set()
-        
-        # ALWAYS add storage.metadata_dir (this is where files are saved)
-        # Resolve to absolute path to ensure we find it
-        storage_paths.add(storage.metadata_dir.resolve())
-        
-        # Add paths relative to project root
-        for rel_path in [
-            "package_storage/metadata",
-            "src/package_storage/metadata"
-        ]:
-            # Try from project root
-            path1 = base_path / rel_path
-            storage_paths.add(path1.resolve())
-            # Try from current working directory
-            path2 = cwd / rel_path
-            storage_paths.add(path2.resolve())
-            # Try relative to current working directory
-            path3 = Path(rel_path).resolve()
-            storage_paths.add(path3)
+        # Clear package storage - ONLY clear the canonical storage location
+        # This ensures we clear from the exact same location where files are saved and queried
+        storage_path = storage.metadata_dir.resolve()
+        logger.info(f"Reset: Clearing storage path = {storage_path}")
         
         total_deleted = 0
-        seen_files = set()  # Avoid deleting same file twice
         
-        # Delete all JSON files from all found paths
-        for storage_path in storage_paths:
-            if storage_path.exists() and storage_path.is_dir():
-                deleted_count = 0
-                try:
-                    for metadata_file in storage_path.glob("*.json"):
-                        file_str = str(metadata_file.resolve())
-                        if file_str in seen_files:
-                            continue
-                        seen_files.add(file_str)
-                        try:
-                            metadata_file.unlink()
-                            deleted_count += 1
-                            total_deleted += 1
-                            logger.debug(f"Deleted {metadata_file}")
-                        except Exception as e:
-                            logger.warning(f"Failed to delete {metadata_file}: {e}")
-                    if deleted_count > 0:
-                        logger.info(f"Deleted {deleted_count} metadata files from {storage_path}")
-                except Exception as e:
-                    logger.warning(f"Error accessing {storage_path}: {e}")
+        # Delete all JSON files from the canonical storage location
+        if storage_path.exists() and storage_path.is_dir():
+            try:
+                for metadata_file in storage_path.glob("*.json"):
+                    try:
+                        metadata_file.unlink()
+                        total_deleted += 1
+                        logger.debug(f"Deleted {metadata_file}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete {metadata_file}: {e}")
+                if total_deleted > 0:
+                    logger.info(f"Reset: Deleted {total_deleted} metadata files from {storage_path}")
+            except Exception as e:
+                logger.warning(f"Error accessing {storage_path}: {e}")
         
-        logger.info(f"Reset: Total deleted {total_deleted} artifact files from {len(storage_paths)} storage locations")
+        logger.info(f"Reset: Total deleted {total_deleted} artifact files")
         
         # Also clear DynamoDB if it exists
         try:
@@ -979,25 +951,20 @@ def reset_system():
         except Exception as e:
             logger.warning(f"DynamoDB reset failed (may not be configured): {e}")
         
-        # Verify reset by checking if any artifacts remain
+        # Verify reset by checking if any artifacts remain in the canonical location
         remaining_count = 0
-        remaining_files = []
-        for storage_path in storage_paths:
-            if storage_path.exists() and storage_path.is_dir():
-                files = list(storage_path.glob("*.json"))
-                remaining_count += len(files)
-                if files:
-                    remaining_files.extend([str(f) for f in files])
+        if storage_path.exists() and storage_path.is_dir():
+            remaining_count = len(list(storage_path.glob("*.json")))
         
         if remaining_count > 0:
-            logger.warning(f"Reset verification: {remaining_count} artifact files still remain after reset: {remaining_files}")
+            logger.warning(f"Reset verification: {remaining_count} artifact files still remain after reset")
             # Try to delete them again
-            for file_path in remaining_files:
+            for metadata_file in storage_path.glob("*.json"):
                 try:
-                    Path(file_path).unlink()
-                    logger.info(f"Force deleted remaining file: {file_path}")
+                    metadata_file.unlink()
+                    logger.info(f"Force deleted remaining file: {metadata_file}")
                 except Exception as e:
-                    logger.error(f"Failed to force delete {file_path}: {e}")
+                    logger.error(f"Failed to force delete {metadata_file}: {e}")
         else:
             logger.info("Reset verification: All artifact files cleared successfully")
 
