@@ -124,10 +124,11 @@ class S3Storage:
                 s3_uri = self.upload_file_to_s3(file_path, s3_key)
                 # add s3 metadata and update URL to point to S3 URI
                 package_data.setdefault('s3', {})
-                package_data['s3']['bucket'] = self.bucket_name
-                package_data['s3']['key'] = s3_key
-                package_data['s3']['uri'] = s3_uri
-                package_data['url'] = s3_uri
+                package_data['s3']['bucket'] = self.bucket_name # type: ignore
+                package_data['s3']['key'] = s3_key # type: ignore
+                package_data['s3']['uri'] = s3_uri # type: ignore
+                package_data['url'] = s3_uri # type: ignore
+                self.logger.info("save_package: uploaded file %s to S3 as %s", file_path, s3_uri)
             except Exception:
                 # Log and continue — metadata will still be saved locally
                 self.logger.exception("save_package: failed to upload file %s to S3", file_path)
