@@ -706,6 +706,119 @@ def search_by_regex():
         logger.exception('Exception in search_by_regex')
         return jsonify({"error": str(e)}), 500
 
+@app.route('/artifact/<artifact_type>', methods=['POST'])
+@require_uploader()
+@rate_limit(max_requests=50, window_seconds=60)
+def upload_artifact(artifact_type: str):
+    """Upload/Ingest an artifact (requires uploader role)."""
+    try:
+        if artifact_type not in ['model', 'dataset', 'code']:
+            return jsonify({"error": f"Invalid artifact type: {artifact_type}"}), 400
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Request body required"}), 400
+
+        name = data.get("name")
+        version = data.get("version", "1.0.0")
+        url = data.get("url")
+        if not name:
+            return jsonify({"error": "Artifact name required"}), 400
+        if not url:
+            return jsonify({"error": "URL is required"}), 400
+
+        # Run scoring and check threshold
+        scores = run_scoring(url)
+        net_score = scores.get("net_score", {}).get("value", 0.0)
+        if net_score < 0.5:
+            return jsonify({
+                "error": "Artifact disqualified",
+                "message": f"Net score {net_score} is below minimum threshold of 0.5",
+                "scores": scores
+            }), 424
+
+        # Save artifact with artifact_type
+        package_info = storage.save_package(name=name, version=version, url=url, scores=scores)
+        package_info["artifact_type"] = artifact_type
+        
+        # Update metadata file with artifact_type
+        metadata_file = storage.metadata_dir / f"{package_info['id']}.json"
+        with open(metadata_file, "w") as f:
+            json.dump(package_info, f, indent=2)
+        
+        current_user = get_current_user()
+        session = get_db()
+        audit_service = AuditService(session)
+        audit_service.log_create(
+            artifact_id=package_info["id"],
+            artifact_type=artifact_type,
+            username=current_user["username"] if current_user else None,
+            artifact_name=name,
+            artifact_version=version
+        )
+        session.commit()
+        session.close()
+
+        return jsonify({
+            "success": True,
+            "artifact_id": package_info["id"],
+            "name": name,
+            "version": version,
+            "url": url,
+            "scores": scores,
+            "message": "Artifact ingested and scored successfully"
+        }), 201
+
+    except Exception as e:
+        logger.exception('Error in upload_artifact')
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/artifacts', methods=['POST'])
+@require_auth()
+def query_artifacts():
+    """Query artifacts with filters (requires authentication)."""
+    try:
+        data = request.get_json() or {}
+        offset = int(request.args.get('offset', 0))
+        limit = min(int(request.args.get('limit', 100)), 100)
+        
+        # Extract filters
+        query = data.get("ArtifactQuery", {})
+        name_filter = query.get("name") or data.get("Name")
+        artifact_type = query.get("type")
+        
+        # Query all packages from storage
+        results = []
+        for metadata_file in storage.metadata_dir.glob("*.json"):
+            try:
+                with open(metadata_file, "r") as f:
+                    package_data = json.load(f)
+                    if package_data.get("is_deleted", False):
+                        continue
+                    if artifact_type and package_data.get("artifact_type") != artifact_type:
+                        continue
+                    if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
+                        continue
+                    results.append(package_data)
+            except Exception:
+                continue
+        
+        # Sort by created_at (newest first)
+        results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        paginated_results = results[offset:offset + limit]
+        
+        return jsonify({
+            "success": True,
+            "count": len(paginated_results),
+            "total": len(results),
+            "offset": offset,
+            "limit": limit,
+            "artifacts": paginated_results
+        }), 200
+    except Exception as e:
+        logger.exception('Error in query_artifacts')
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/reset', methods=['DELETE'])
 #@require_admin()
 def reset_system():
@@ -721,13 +834,19 @@ def reset_system():
         # Reinitialize with default admin
         init_db()
 
-        # Clear package storage
+        # Clear package storage - delete all JSON files
         storage_path = storage.metadata_dir
         if storage_path.exists():
-            shutil.rmtree(storage_path)
-            storage_path.mkdir(parents=True)
-
-        # TODO: update this to call method to iteratively/recursively delete all objects in S3 bucket
+            for metadata_file in storage_path.glob("*.json"):
+                try:
+                    metadata_file.unlink()
+                except Exception:
+                    pass
+            # Also clear DynamoDB if it exists
+            try:
+                dynamodb_service.reset_database()
+            except Exception:
+                pass
 
         logger.info('System reset completed')
         return jsonify({
