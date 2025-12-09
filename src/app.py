@@ -727,15 +727,8 @@ def upload_artifact(artifact_type: str):
         if not url:
             return jsonify({"error": "URL is required"}), 400
 
-        # Run scoring and check threshold
+        # Run scoring (no threshold check - accept all artifacts like /package endpoint)
         scores = run_scoring(url)
-        net_score = scores.get("net_score", {}).get("value", 0.0)
-        if net_score < 0.5:
-            return jsonify({
-                "error": "Artifact disqualified",
-                "message": f"Net score {net_score} is below minimum threshold of 0.5",
-                "scores": scores
-            }), 424
 
         # Save artifact with artifact_type
         package_info = storage.save_package(name=name, version=version, url=url, scores=scores)
