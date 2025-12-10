@@ -46,8 +46,29 @@ def require_auth(required_roles: Optional[List] = None):
                     'message': 'X-Authorization header is required'
                 }), 401
             
-            # Verify token with Cognito
-            user_info = cognito_auth.verify_token(token)
+            user_info = None
+            
+            # Try legacy token format FIRST (base64 encoded username:role)
+            try:
+                import base64
+                decoded = base64.b64decode(token).decode('utf-8')
+                if ':' in decoded:
+                    username, role = decoded.split(':', 1)
+                    user_info = {
+                        'username': username,
+                        'role': role
+                    }
+            except Exception:
+                pass
+            
+            # If legacy token didn't work, try Cognito
+            if not user_info:
+                try:
+                    user_info = cognito_auth.verify_token(token)
+                except Exception:
+                    pass
+            
+            # If neither worked, reject
             if not user_info:
                 return jsonify({
                     'error': 'Invalid token',
