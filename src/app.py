@@ -854,46 +854,68 @@ def reset_system():
         except Exception as e:
             logger.warning('S3 cleanup failed (non-critical): %s', e)
         
-        # Clear local package storage metadata files
+        # Clear local package storage metadata files - AGGRESSIVE APPROACH
         # Use resolved absolute path to ensure consistency
         storage_path = storage.metadata_dir.resolve()
         logger.info('Reset: Clearing metadata files from %s', storage_path)
+        logger.info('Reset: Directory exists: %s', storage_path.exists())
+        
         deleted_files = 0
         
-        # Ensure directory exists (it might have been deleted)
-        storage_path.mkdir(parents=True, exist_ok=True)
-        
         if storage_path.exists():
-            # Get all JSON files before deletion to ensure we catch them all
-            # Use list() to materialize the generator before deletion
-            all_files = list(storage_path.glob("*.json"))
-            logger.info('Reset: Found %d metadata files to delete', len(all_files))
+            import os
+            import shutil
             
-            # Delete files with retry logic
-            for metadata_file in all_files:
+            # Get ALL files in directory (not just JSON)
+            try:
+                all_items = os.listdir(storage_path)
+                logger.info('Reset: Found %d items in directory: %s', len(all_items), all_items[:10])
+            except Exception as e:
+                logger.error('Reset: Could not list directory: %s', e)
+                all_items = []
+            
+            # Method 1: Try to delete individual files
+            json_files = [f for f in all_items if f.endswith('.json')]
+            logger.info('Reset: Found %d JSON files to delete', len(json_files))
+            
+            for filename in json_files:
+                filepath = storage_path / filename
                 max_retries = 3
                 for attempt in range(max_retries):
                     try:
-                        if metadata_file.exists():
-                            metadata_file.unlink()
-                            # Verify deletion
-                            if metadata_file.exists():
-                                raise OSError(f"File still exists after unlink: {metadata_file}")
-                            deleted_files += 1
-                            break
+                        if filepath.exists():
+                            filepath.unlink()
+                            if not filepath.exists():
+                                deleted_files += 1
+                                logger.debug('Reset: Deleted %s', filename)
+                                break
+                            else:
+                                logger.warning('Reset: File still exists after unlink: %s', filename)
                     except Exception as e:
                         if attempt == max_retries - 1:
-                            logger.error('Failed to delete metadata file %s after %d attempts: %s', 
-                                       metadata_file, max_retries, e)
+                            logger.error('Reset: Failed to delete %s after %d attempts: %s', 
+                                       filename, max_retries, e)
                         else:
-                            logger.warning('Attempt %d failed to delete %s: %s, retrying...', 
-                                         attempt + 1, metadata_file, e)
                             import time
-                            time.sleep(0.1)  # Brief delay before retry
+                            time.sleep(0.05)
+            
+            # Method 2: Nuclear option - remove and recreate directory
+            try:
+                logger.info('Reset: Nuclear option - removing entire directory')
+                shutil.rmtree(storage_path)
+                logger.info('Reset: Directory removed successfully')
+                
+                # Recreate empty directory
+                storage_path.mkdir(parents=True, exist_ok=True)
+                logger.info('Reset: Directory recreated')
+            except Exception as e:
+                logger.error('Reset: Failed to remove directory: %s', e)
         else:
             logger.warning('Reset: Metadata directory does not exist: %s', storage_path)
+            # Create it
+            storage_path.mkdir(parents=True, exist_ok=True)
         
-        logger.info('Deleted %d metadata files', deleted_files)
+        logger.info('Reset: Deleted %d metadata files', deleted_files)
         
         # Reset database
         try:
@@ -919,64 +941,89 @@ def reset_system():
             logger.warning('DynamoDB reset failed (non-critical): %s', e)
         
         # Verify reset by checking if any artifacts remain
-        # Re-resolve path to ensure we're checking the correct location
-        # Add a small delay to ensure filesystem sync
+        # Multiple verification passes with delays
         import time
-        time.sleep(0.2)  # Allow filesystem to sync
+        import os
         
         verification_path = storage.metadata_dir.resolve()
-        # Force refresh by re-reading the directory
-        if verification_path.exists():
-            # Use os.listdir to force filesystem refresh
-            import os
+        logger.info('Reset verification: Checking directory %s', verification_path)
+        
+        # Wait for filesystem to sync
+        time.sleep(0.3)
+        
+        # Multiple verification passes
+        for verification_attempt in range(3):
+            if not verification_path.exists():
+                logger.warning('Reset verification: Directory does not exist, recreating')
+                verification_path.mkdir(parents=True, exist_ok=True)
+                remaining_count = 0
+                break
+                
             try:
                 dir_contents = os.listdir(verification_path)
                 json_files = [f for f in dir_contents if f.endswith('.json')]
-                remaining_artifacts = [verification_path / f for f in json_files]
+                remaining_count = len(json_files)
+                
+                logger.info('Reset verification attempt %d: Found %d files: %s', 
+                           verification_attempt + 1, remaining_count, json_files[:5])
+                
+                if remaining_count == 0:
+                    break
+                    
+                # Try to delete remaining files
+                for filename in json_files:
+                    filepath = verification_path / filename
+                    try:
+                        if filepath.exists():
+                            filepath.unlink()
+                            logger.info('Reset verification: Deleted remaining file %s', filename)
+                    except Exception as e:
+                        logger.error('Reset verification: Failed to delete %s: %s', filename, e)
+                
+                # Wait before next verification
+                if verification_attempt < 2:
+                    time.sleep(0.2)
+                    
             except OSError as e:
-                logger.warning('Reset verification: Could not list directory %s: %s', verification_path, e)
-                remaining_artifacts = []
-        else:
-            remaining_artifacts = []
-            
-        if remaining_artifacts:
-            logger.warning('Reset verification: %d metadata files still exist in %s', len(remaining_artifacts), verification_path)
-            # Try to delete them again with force
-            for metadata_file in remaining_artifacts:
-                try:
-                    if metadata_file.exists():
-                        metadata_file.unlink()
-                        # Double-check deletion
-                        if metadata_file.exists():
-                            logger.error('File still exists after second deletion attempt: %s', metadata_file)
-                        else:
-                            logger.info('Deleted remaining file: %s', metadata_file)
-                except Exception as e:
-                    logger.error('Failed to delete remaining file %s: %s', metadata_file, e)
-        else:
-            logger.info('Reset verification: No remaining artifacts in %s', verification_path)
+                logger.error('Reset verification: Could not list directory: %s', e)
+                remaining_count = 0
+                break
+        
+        logger.info('Reset verification final: %d artifacts remain', remaining_count)
 
         # Final verification - count remaining artifacts
+        import os
         final_check_path = storage.metadata_dir.resolve()
         final_remaining = []
+        
         if final_check_path.exists():
             try:
-                import os
                 dir_contents = os.listdir(final_check_path)
                 final_remaining = [f for f in dir_contents if f.endswith('.json')]
-            except OSError:
-                pass
+                logger.info('Reset final check: Directory contains %d items, %d JSON files', 
+                           len(dir_contents), len(final_remaining))
+            except OSError as e:
+                logger.error('Reset final check: Could not list directory: %s', e)
+        else:
+            logger.warning('Reset final check: Directory does not exist')
+            final_check_path.mkdir(parents=True, exist_ok=True)
         
         if final_remaining:
-            logger.error('Reset completed but %d artifacts still remain: %s', len(final_remaining), final_remaining[:5])
+            logger.error('RESET FAILED: %d artifacts still remain: %s', len(final_remaining), final_remaining)
+            # Try one more time to delete them
+            for filename in final_remaining:
+                try:
+                    (final_check_path / filename).unlink()
+                except:
+                    pass
             return jsonify({
-                "success": True,
-                "message": "System reset to initial state",
-                "warning": f"{len(final_remaining)} artifacts may still exist",
-                "remaining_count": len(final_remaining)
-            }), 200
+                "success": False,
+                "message": "System reset incomplete - artifacts remain",
+                "remaining_count": len(final_remaining),
+                "remaining_files": final_remaining[:10]
+            }), 500
         else:
-            logger.info('System reset completed successfully - no artifacts remain')
+            logger.info('RESET SUCCESS: System reset completed - no artifacts remain')
             return jsonify({
                 "success": True,
                 "message": "System reset to initial state",
