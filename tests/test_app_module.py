@@ -250,7 +250,9 @@ def test_authenticate_endpoint_cognito_success(monkeypatch):
     resp = client.put('/authenticate', json={"User": {"name": "u"}, "Secret": {"password": "p"}})
     assert resp.status_code == 200
     data = resp.json
-    assert data['token'] == 'T'
+    # According to OpenAPI spec, AuthenticationToken is type: string
+    # The endpoint returns a JSON string like "bearer TOKEN"
+    assert data == 'bearer T'
 
 
 # def test_get_package_and_search_and_upload_and_reset(monkeypatch, tmp_path):
