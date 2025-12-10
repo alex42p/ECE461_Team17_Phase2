@@ -195,23 +195,26 @@ def init_db():
     db_manager.create_tables()
     
     # Create default admin user if not exists
-    # from auth_service import AuthService
+    import bcrypt
     session = get_db()
     try:
-        # auth_service = AuthService(session)
         existing_admin = session.query(User).filter_by(username="admin").first()
         
         if not existing_admin:
-            admin_user = auth_service.create_user( # type: ignore
+            # Create admin user directly (no auth_service dependency)
+            password_hash = bcrypt.hashpw("Admin123!".encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            admin_user = User(
                 username="admin",
-                password="Admin123!",
-                role=UserRole.ADMIN
+                password_hash=password_hash,
+                role=UserRole.ADMIN,
+                is_active=True
             )
-            # print(f"Created default admin user: {admin_user.username}")
+            session.add(admin_user)
+            print(f"Created default admin user: admin")
         
         session.commit()
     except Exception as e:
         session.rollback()
-        # print(f"Error initializing database: {e}")
+        print(f"Error initializing database: {e}")
     finally:
         session.close()

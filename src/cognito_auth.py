@@ -52,6 +52,7 @@ class CognitoAuthService:
 
         # Enable Cognito client if required Cognito env vars are present. Prefer explicit AWS keys
         # when provided, otherwise rely on environment/instance role and boto3 defaults.
+        # Falls back to legacy auth if Cognito not configured
         if self.user_pool_id and self.client_id:
             try:
                 if aws_access_key and aws_secret_key:
@@ -63,17 +64,16 @@ class CognitoAuthService:
                 else:
                     self.client = boto3.client('cognito-idp', region_name=self.region)
                 self.enabled = True
-                self.logger.debug("Cognito client initialized (client present=%s)", bool(self.client))
+                self.logger.info("✅ Cognito client initialized and enabled")
             except Exception as e:
                 self._log_exception("Failed to initialize boto3 Cognito client", e)
                 self.client = None
                 self.enabled = False
-                self.logger.debug("⚠️  Cognito client initialization failed - features disabled")
+                self.logger.info("⚠️  Cognito client initialization failed - using legacy auth")
         else:
-            self.logger.debug("⚠️  Cognito not fully configured - disabling Cognito features")
+            self.logger.info("⚠️  Cognito env vars not set - using legacy authentication")
             self.client = None
             self.enabled = False
-            self.logger.debug("⚠️  Cognito not configured - AWS Cognito features disabled")
             # self.logger.debug("   To enable: Run ./scripts/setup_cognito.sh and set environment variables")
         
         self.logger.info("Initialized CognitoAuthService")
