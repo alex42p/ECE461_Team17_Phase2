@@ -1079,6 +1079,20 @@ def reset_system():
             logger.info('S3 objects cleared successfully')
         except Exception as e:
             logger.warning('S3 cleanup failed (non-critical): %s', e)
+
+        # Clear DynamoDB 
+        try:
+            dynamodb_service.reset_database()
+            logger.info('DynamoDB cleared successfully')
+        except Exception as e:
+            logger.warning('DynamoDB cleanup failed (non-critical): %s', e)
+
+        # Clear SQLAlchemy database
+        try:
+            db_manager.reset_database()
+            logger.info('SQLAlchemy database cleared successfully')
+        except Exception as e:
+            logger.warning('Database cleanup failed (non-critical): %s', e)
         
         # Clear local package storage metadata files - AGGRESSIVE APPROACH
         # Use resolved absolute path to ensure consistency
@@ -1142,14 +1156,6 @@ def reset_system():
             storage_path.mkdir(parents=True, exist_ok=True)
         
         logger.info('Reset: Deleted %d metadata files', deleted_files)
-        
-        # Reset database
-        try:
-            db_manager.reset_database()
-            logger.info('Database reset completed')
-        except Exception as e:
-            logger.error('Database reset failed: %s', e)
-            raise
         
         # Reinitialize with default admin
         try:
