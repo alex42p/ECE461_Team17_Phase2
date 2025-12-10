@@ -771,6 +771,28 @@ def upload_package():
         )
         logger.info('Package saved with id %s', package_info.get('id'))
 
+        # Save to DynamoDB
+        try:
+            dynamodb_package = {
+                    'id': package_info['id'],
+                    'name': name,
+                    'version': version,
+                    'artifact_type': artifact_type,
+                    'url': url,
+                    'scores': scores,
+                    'metadata': package_info,
+                    'created_at': package_info.get('created_at'),
+                    'is_deleted': False
+            }
+
+            saved_to_db = dynamodb_service.create_package(dynamodb_package)
+            if saved_to_db:
+                logger.info('Package %s saved to DynamoDB', package_info['id'])
+            else:
+                logger.warning('Failed to save package %s to DynamoDB', package_info['id'])
+        except Exception as e:
+            logger.exception('Error saving package to DynamoDB: %s', e)
+
         # Log to audit trail
         session = get_db()
         audit_service = AuditService(session)
