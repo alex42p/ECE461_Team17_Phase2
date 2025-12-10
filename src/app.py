@@ -742,6 +742,7 @@ def upload_package():
         url = data.get("url")
         is_sensitive = data.get("is_sensitive", False)
         monitoring_script = data.get("monitoring_script")
+        artifact_type = data.get("artifact_type", "model")  
 
         # Validation
         if not name:
