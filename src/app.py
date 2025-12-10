@@ -293,16 +293,11 @@ def authenticate():
         if USE_COGNITO:
             result = cognito_auth.authenticate(username, password)
             logger.info('User %s authenticated via Cognito', username)
-            return jsonify({
-                "token": result["access_token"],
-                "user": {
-                    "name": result["user"]["username"],
-                    "role": result["user"]["role"],
-                    "email": result["user"]["email"]
-                },
-                "expires_in": result["expires_in"],
-                "max_api_calls": 1000
-            }), 200
+            # OpenAPI spec expects plain text token (text/plain), not JSON
+            token = result["access_token"]
+            response = app.make_response(token)
+            response.headers['Content-Type'] = 'text/plain'
+            return response, 200
         else:
             # Legacy authentication using database
             logger.info('Using legacy database authentication for user: %s', username)
@@ -328,13 +323,10 @@ def authenticate():
                 
                 logger.info('Legacy auth successful for user %s with role %s', username, user.role)
                 
-                return jsonify({
-                    "token": simple_token,
-                    "user": {
-                        "username": username,
-                        "role": user.role.value
-                    }
-                }), 200
+                # OpenAPI spec expects plain text token (text/plain), not JSON
+                response = app.make_response(simple_token)
+                response.headers['Content-Type'] = 'text/plain'
+                return response, 200
                 
             except Exception as e:
                 logger.exception('Error in legacy authentication')
