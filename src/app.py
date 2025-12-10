@@ -288,16 +288,24 @@ def authenticate():
 
         logger.debug('Authenticating user: %s (cognito=%s)', username, USE_COGNITO)
 
-        # Try Cognito if enabled, otherwise use legacy auth
+        # Try Cognito if enabled, with fallback to legacy auth
         logger.debug('Using Cognito: %s', USE_COGNITO)
+        cognito_failed = False
+        
         if USE_COGNITO:
-            result = cognito_auth.authenticate(username, password)
-            logger.info('User %s authenticated via Cognito', username)
-            # OpenAPI spec expects JSON string: "bearer TOKEN"
-            token = f"bearer {result['access_token']}"
-            return jsonify(token), 200
-        else:
-            # Legacy authentication using database
+            try:
+                result = cognito_auth.authenticate(username, password)
+                logger.info('User %s authenticated via Cognito', username)
+                # OpenAPI spec expects JSON string: "bearer TOKEN"
+                token = f"bearer {result['access_token']}"
+                return jsonify(token), 200
+            except Exception as cognito_error:
+                logger.warning('Cognito authentication failed for %s: %s', username, cognito_error)
+                logger.info('Falling back to legacy authentication for user: %s', username)
+                cognito_failed = True
+        
+        # Use legacy authentication if Cognito is disabled or failed
+        if not USE_COGNITO or cognito_failed:
             logger.info('Using legacy database authentication for user: %s', username)
             try:
                 # Check if user exists in database

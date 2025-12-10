@@ -198,19 +198,23 @@ def init_db():
     import bcrypt
     session = get_db()
     try:
-        existing_admin = session.query(User).filter_by(username="admin").first()
+        # Create the autograder's expected default admin user
+        autograder_admin_username = "ece30861defaultadminuser"
+        autograder_admin_password = "correcthorsebatterystaple123(!__+@**(A'\"`;DROP TABLE artifacts;"
+        
+        existing_admin = session.query(User).filter_by(username=autograder_admin_username).first()
         
         if not existing_admin:
             # Create admin user directly (no auth_service dependency)
-            password_hash = bcrypt.hashpw("Admin123!".encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            password_hash = bcrypt.hashpw(autograder_admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             admin_user = User(
-                username="admin",
+                username=autograder_admin_username,
                 password_hash=password_hash,
                 role=UserRole.ADMIN,
                 is_active=True
             )
             session.add(admin_user)
-            print(f"Created default admin user: admin")
+            print(f"Created default admin user: {autograder_admin_username}")
         
         session.commit()
     except Exception as e:

@@ -798,26 +798,28 @@ def init_db():
         # create tables if they don't exist
         db_service.create_tables()
         
-        # create default admin user
+        # create the autograder's expected default admin user
         import bcrypt
-        existing_admin = db_service.get_user('admin')
+        autograder_admin_username = "ece30861defaultadminuser"
+        autograder_admin_password = "correcthorsebatterystaple123(!__+@**(A'\"`;DROP TABLE artifacts;"
+        
+        existing_admin = db_service.get_user(autograder_admin_username)
         
         if not existing_admin:
-            password = 'Admin123!'
-            password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            password_hash = bcrypt.hashpw(autograder_admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             
             admin_user = db_service.create_user({
-                'username': 'admin',
+                'username': autograder_admin_username,
                 'password_hash': password_hash,
                 'role': UserRole.ADMIN.value
             })
             
-            self.logger.info(f"Created default admin user: {admin_user['username']}")
+            db_service.logger.info(f"Created default admin user: {admin_user['username']}")
         else:
-            self.logger.info("Admin user already exists")
+            db_service.logger.info("Admin user already exists")
             
     except Exception as e:
-        self.logger.error(f"Error initializing database: {e}")
+        db_service.logger.error(f"Error initializing database: {e}")
         raise
 
 
