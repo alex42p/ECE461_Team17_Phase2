@@ -889,6 +889,31 @@ def upload_artifact(artifact_type: str):
         with open(metadata_file, "w") as f:
             json.dump(package_info, f, indent=2)
         
+        # Save to DynamoDB
+        try:
+            # Convert package to DynamoDB format
+            dynamodb_package = {
+                'id': package_info['id'],
+                'name': name,
+                'version': version,
+                'artifact_type': artifact_type,
+                'url': url,
+                'scores': scores,
+                'metadata': package_info,  # Store full package info
+                'created_at': package_info.get('created_at'),
+                'is_deleted': False      
+            }
+
+            # save to db
+            saved_to_db = dynamodb_service.create_package(dynamodb_package)
+            if saved_to_db:
+                logger.info('Package %s saved to DynamoDB', package_info['id'])
+            else:
+                logger.warning('Failed to save package %s to DynamoDB', package_info['id'])
+        except Exception as e:
+            logger.exception('Error saving package to DynamoDB: %s', e)
+
+        # Audit logging
         current_user = get_current_user()
         session = get_db()
         audit_service = AuditService(session)
