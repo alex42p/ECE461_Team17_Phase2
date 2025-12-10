@@ -269,8 +269,9 @@ def authenticate():
             logger.warning('Authenticate called without request body')
             return jsonify({"error": "Request body required"}), 400
 
-        user_data = data.get("User", {})
-        secret_data = data.get("Secret", {})
+        # Support both uppercase (legacy) and lowercase (OpenAPI spec) keys
+        user_data = data.get("user") or data.get("User", {})
+        secret_data = data.get("secret") or data.get("Secret", {})
 
         username = user_data.get("name")
         password = secret_data.get("password")
@@ -567,12 +568,13 @@ def health_check():
 @app.route('/tracks', methods=['GET'])
 def get_tracks():
     """Get system tracks (for autograder tracking)."""
-    # Always return Access Control Track for autograder
-    # This endpoint should never fail - it's critical for autograder
-    # Return as plain array (autograder expects ["Access Control Track"])
-    tracks = ["Access Control Track"]
-    logger.info('Tracks endpoint called, returning: %s', tracks)
-    return jsonify(tracks), 200
+    # Return planned tracks as per OpenAPI spec
+    # Must use lowercase: "Access control track" (not "Access Control Track")
+    planned_tracks = ["Access control track"]
+    logger.info('Tracks endpoint called, returning plannedTracks: %s', planned_tracks)
+    return jsonify({
+        "plannedTracks": planned_tracks
+    }), 200
 
 @app.route('/health/components', methods=['GET'])
 #@require_admin()
@@ -907,22 +909,47 @@ def upload_artifact(artifact_type: str):
 @app.route('/artifacts', methods=['POST'])
 @require_auth()
 def query_artifacts():
-    """Query artifacts with filters (requires authentication)."""
+    """
+    Query artifacts with filters (requires authentication).
+    
+    Supports two formats:
+    1. OpenAPI spec format (array of queries): [{"name": "test"}, ...]
+    2. Legacy format (object): {"ArtifactQuery": {...}} or just {}
+    
+    Returns array format if OpenAPI format received, object format otherwise.
+    """
     try:
-        data = request.get_json() or {}
+        data = request.get_json()
         offset = int(request.args.get('offset', 0))
         limit = min(int(request.args.get('limit', 100)), 100)
         
-        # Extract filters
-        query = data.get("ArtifactQuery", {})
-        name_filter = query.get("name") or data.get("Name")
-        artifact_type = query.get("type")
+        # Determine format and extract queries
+        use_openapi_format = isinstance(data, list)
+        queries = []
+        
+        if use_openapi_format:
+            # OpenAPI format: array of ArtifactQuery objects
+            queries = data if data else []
+        elif isinstance(data, dict):
+            # Legacy format: object with optional ArtifactQuery key
+            query = data.get("ArtifactQuery") or data
+            # Convert single query to list for uniform processing
+            if query and query != data:  # Has ArtifactQuery key
+                queries = [query]
+            elif not data or data == {}:  # Empty object means "all"
+                queries = [{"name": "*"}]  # Wildcard to get all
+            else:
+                queries = [data]
+        else:
+            # Default to empty query (return all)
+            queries = [{"name": "*"}]
         
         # Query all packages from storage
-        # Use resolved absolute path to ensure consistency with reset
-        results = []
         storage_path = storage.metadata_dir.resolve()
-        logger.debug('Query artifacts: Checking metadata directory %s', storage_path)
+        logger.debug('Query artifacts: Checking metadata directory %s (format: %s, queries: %d)', 
+                    storage_path, 'OpenAPI' if use_openapi_format else 'legacy', len(queries))
+        
+        results = []
         if storage_path.exists():
             for metadata_file in storage_path.glob("*.json"):
                 try:
@@ -930,11 +957,28 @@ def query_artifacts():
                         package_data = json.load(f)
                         if package_data.get("is_deleted", False):
                             continue
-                        if artifact_type and package_data.get("artifact_type") != artifact_type:
-                            continue
-                        if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
-                            continue
-                        results.append(package_data)
+                        
+                        # Check if package matches ANY query
+                        matches = False
+                        for query in queries:
+                            name_pattern = query.get("name", "*")
+                            type_filters = query.get("types", [])
+                            
+                            # Name matching (support wildcards)
+                            name_match = (name_pattern == "*" or 
+                                        name_pattern.lower() in package_data.get("name", "").lower())
+                            
+                            # Type filtering
+                            type_match = (not type_filters or 
+                                        package_data.get("artifact_type") in type_filters or
+                                        package_data.get("type") in type_filters)
+                            
+                            if name_match and type_match:
+                                matches = True
+                                break
+                        
+                        if matches:
+                            results.append(package_data)
                 except Exception:
                     continue
         
@@ -943,14 +987,21 @@ def query_artifacts():
             results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         paginated_results = results[offset:offset + limit]
         
-        return jsonify({
-            "success": True,
-            "count": len(paginated_results),
-            "total": len(results),
-            "offset": offset,
-            "limit": limit,
-            "artifacts": paginated_results
-        }), 200
+        # Return appropriate format
+        if use_openapi_format:
+            # OpenAPI format: return array of artifacts
+            return jsonify(paginated_results), 200
+        else:
+            # Legacy format: return object with metadata
+            return jsonify({
+                "success": True,
+                "count": len(paginated_results),
+                "total": len(results),
+                "offset": offset,
+                "limit": limit,
+                "artifacts": paginated_results
+            }), 200
+            
     except Exception as e:
         logger.exception('Error in query_artifacts')
         return jsonify({"error": str(e)}), 500
