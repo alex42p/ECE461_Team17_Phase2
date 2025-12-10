@@ -388,12 +388,54 @@ def create_user():
                 "user": user
             }), 201
         else:
-            # Legacy user creation - not implemented in this phase
-            logger.warning('Legacy user creation not available')
-            return jsonify({
-                "error": "User creation unavailable",
-                "message": "Cognito authentication not configured"
-            }), 503
+            # Legacy user creation using database
+            logger.info('Creating user via legacy auth: %s', username)
+            try:
+                import bcrypt
+                
+                # Validate role
+                valid_roles = ["admin", "uploader", "searcher", "downloader"]
+                if role_str not in valid_roles:
+                    return jsonify({"error": f"Invalid role. Must be one of: {valid_roles}"}), 400
+                
+                # Check if user already exists
+                session = get_db()
+                existing = session.query(User).filter_by(username=username).first()
+                if existing:
+                    logger.warning('User %s already exists', username)
+                    return jsonify({"error": "User already exists"}), 409
+                
+                # Hash password
+                password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                
+                # Create user
+                role_enum = UserRole[role_str.upper()]
+                new_user = User(
+                    username=username,
+                    password_hash=password_hash,
+                    role=role_enum,
+                    is_active=True
+                )
+                session.add(new_user)
+                session.commit()
+                
+                logger.info('Created legacy user %s with role %s', username, role_str)
+                return jsonify({
+                    "success": True,
+                    "user": {
+                        "username": username,
+                        "role": role_str
+                    }
+                }), 201
+                
+            except Exception as e:
+                logger.exception('Error creating legacy user')
+                if 'session' in locals():
+                    session.rollback()
+                return jsonify({"error": "User creation failed"}), 500
+            finally:
+                if 'session' in locals():
+                    session.close()
 
     except ValueError as e:
         logger.exception('ValueError in create_user')
@@ -415,12 +457,34 @@ def delete_user(username: str):
             cognito_auth.delete_user(username)
             logger.info('Deleted Cognito user %s', username)
         else:
-            # Legacy delete - not implemented in this phase
-            logger.warning('Legacy user deletion not available')
-            return jsonify({
-                "error": "User deletion unavailable",
-                "message": "Cognito authentication not configured"
-            }), 503
+            # Legacy user deletion using database
+            logger.info('Deleting user via legacy auth: %s', username)
+            try:
+                session = get_db()
+                user = session.query(User).filter_by(username=username).first()
+                
+                if not user:
+                    logger.warning('User %s not found for deletion', username)
+                    return jsonify({"error": "User not found"}), 404
+                
+                # Delete user
+                session.delete(user)
+                session.commit()
+                
+                logger.info('Deleted legacy user %s', username)
+                return jsonify({
+                    "success": True,
+                    "message": f"User {username} deleted"
+                }), 200
+                
+            except Exception as e:
+                logger.exception('Error deleting legacy user')
+                if 'session' in locals():
+                    session.rollback()
+                return jsonify({"error": "User deletion failed"}), 500
+            finally:
+                if 'session' in locals():
+                    session.close()
 
         return jsonify({"success": True, "message": f"User {username} deleted"}), 200
 
@@ -447,12 +511,35 @@ def list_users():
                 "users": users
             }), 200
         else:
-            # Legacy list users - not implemented in this phase
-            logger.warning('Legacy user listing not available')
-            return jsonify({
-                "error": "User listing unavailable",
-                "message": "Cognito authentication not configured"
-            }), 503
+            # Legacy list users using database
+            logger.info('Listing users via legacy auth')
+            try:
+                session = get_db()
+                users = session.query(User).filter_by(is_active=True).all()
+                
+                user_list = [
+                    {
+                        "username": u.username,
+                        "role": u.role.value,
+                        "created_at": u.created_at.isoformat(),
+                        "is_active": u.is_active
+                    }
+                    for u in users
+                ]
+                
+                logger.info('Retrieved %d legacy users', len(user_list))
+                return jsonify({
+                    "success": True,
+                    "count": len(user_list),
+                    "users": user_list
+                }), 200
+                
+            except Exception as e:
+                logger.exception('Error listing legacy users')
+                return jsonify({"error": "User listing failed"}), 500
+            finally:
+                if 'session' in locals():
+                    session.close()
 
     except Exception as e:
         logger.exception('Error in list_users')
@@ -482,11 +569,10 @@ def get_tracks():
     """Get system tracks (for autograder tracking)."""
     # Always return Access Control Track for autograder
     # This endpoint should never fail - it's critical for autograder
+    # Return as plain array (autograder expects ["Access Control Track"])
     tracks = ["Access Control Track"]
     logger.info('Tracks endpoint called, returning: %s', tracks)
-    return jsonify({
-        "tracks": tracks
-    }), 200
+    return jsonify(tracks), 200
 
 @app.route('/health/components', methods=['GET'])
 #@require_admin()
