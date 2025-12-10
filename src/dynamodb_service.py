@@ -814,13 +814,16 @@ def init_db():
                 'role': UserRole.ADMIN.value
             })
             
-            db_service.logger.info(f"Created default admin user: {admin_user['username']}")
+            db_service.logger.info(f"✓ Created default admin user: {admin_user['username']}")
+            print(f"✓ Created default admin user in DynamoDB: {admin_user['username']}")
         else:
-            db_service.logger.info("Admin user already exists")
+            db_service.logger.info(f"✓ Default admin user already exists: {autograder_admin_username}")
+            print(f"✓ Default admin user already exists in DynamoDB: {autograder_admin_username}")
             
     except Exception as e:
-        db_service.logger.error(f"Error initializing database: {e}")
-        raise
+        db_service.logger.error(f"✗ Error initializing DynamoDB: {e}", exc_info=True)
+        print(f"✗ Error initializing DynamoDB: {e}")
+        raise  # Re-raise to prevent app from starting if init fails
 
 
 if __name__ == '__main__':

@@ -196,6 +196,9 @@ def init_db():
     
     # Create default admin user if not exists
     import bcrypt
+    import logging
+    logger = logging.getLogger(__name__)
+    
     session = get_db()
     try:
         # Create the autograder's expected default admin user
@@ -214,11 +217,17 @@ def init_db():
                 is_active=True
             )
             session.add(admin_user)
-            print(f"Created default admin user: {autograder_admin_username}")
+            session.commit()
+            logger.info(f"✓ Created default admin user: {autograder_admin_username}")
+            print(f"✓ Created default admin user: {autograder_admin_username}")
+        else:
+            logger.info(f"✓ Default admin user already exists: {autograder_admin_username}")
+            print(f"✓ Default admin user already exists: {autograder_admin_username}")
         
-        session.commit()
     except Exception as e:
         session.rollback()
-        print(f"Error initializing database: {e}")
+        logger.error(f"✗ Error initializing database: {e}", exc_info=True)
+        print(f"✗ Error initializing database: {e}")
+        raise  # Re-raise to prevent app from starting if init fails
     finally:
         session.close()

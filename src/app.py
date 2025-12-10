@@ -306,18 +306,26 @@ def authenticate():
         
         # Use legacy authentication if Cognito is disabled or failed
         if not USE_COGNITO or cognito_failed:
-            logger.info('Using legacy database authentication for user: %s', username)
+            logger.info('Using legacy database authentication for user: %s (cognito_failed=%s)', username, cognito_failed)
             try:
                 # Check if user exists in database
                 session = get_db()
                 user = session.query(User).filter_by(username=username).first()
                 
-                if not user or not user.is_active:
-                    logger.warning('Legacy auth: User %s not found or inactive', username)
+                if not user:
+                    logger.warning('Legacy auth: User %s not found in database', username)
+                    # List all users for debugging
+                    all_users = session.query(User.username).all()
+                    logger.debug('Available users in database: %s', [u[0] for u in all_users])
+                    return jsonify({"error": "Invalid credentials"}), 401
+                
+                if not user.is_active:
+                    logger.warning('Legacy auth: User %s exists but is inactive', username)
                     return jsonify({"error": "Invalid credentials"}), 401
                 
                 # Verify password with bcrypt
                 import bcrypt
+                logger.debug('Verifying password for user %s', username)
                 if not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
                     logger.warning('Legacy auth: Invalid password for user %s', username)
                     return jsonify({"error": "Invalid credentials"}), 401
@@ -327,14 +335,14 @@ def authenticate():
                 import base64
                 simple_token = base64.b64encode(f"{username}:{user.role.value}".encode()).decode()
                 
-                logger.info('Legacy auth successful for user %s with role %s', username, user.role)
+                logger.info('✓ Legacy auth successful for user %s with role %s', username, user.role)
                 
                 # OpenAPI spec expects JSON string: "bearer TOKEN"
                 token = f"bearer {simple_token}"
                 return jsonify(token), 200
                 
             except Exception as e:
-                logger.exception('Error in legacy authentication')
+                logger.exception('✗ Error in legacy authentication for user %s: %s', username, e)
                 return jsonify({"error": "Authentication failed"}), 500
             finally:
                 if 'session' in locals():
