@@ -34,3 +34,7 @@ src/package_storage/metadata/
 
 # Don't push databases
 *.db
+
+# OpenAPI spec files (reference only)
+ece461_fall_2025_openapi_spec.yaml.webloc
+openapi_spec_downloaded.yaml
