@@ -811,20 +811,29 @@ def init_db():
             admin_user = db_service.create_user({
                 'username': autograder_admin_username,
                 'password_hash': password_hash,
-                'role': UserRole.ADMIN.value
+                'role': UserRole.ADMIN.value,
+                'is_active': True,
+                'created_at': datetime.now(timezone.utc).isoformat()
             })
             
             db_service.logger.info(f"✓ Created default admin user: {admin_user['username']}")
             print(f"✓ Created default admin user in DynamoDB: {admin_user['username']}")
         else:
-            db_service.logger.info(f"✓ Default admin user already exists: {autograder_admin_username}")
-            print(f"✓ Default admin user already exists in DynamoDB: {autograder_admin_username}")
-            
+            # Verify password is correct
+            stored_hash = existing_admin.get('password_hash', '')
+            if bcrypt.checkpw(autograder_admin_password.encode('utf-8'), stored_hash.encode('utf-8')):
+                db_service.logger.info(f"✓ Default admin user exists with correct password: {autograder_admin_username}")
+                print(f"✓ Default admin user exists in DynamoDB: {autograder_admin_username}")
+            else:
+                # Update password hash if incorrect
+                password_hash = bcrypt.hashpw(autograder_admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                db_service.update_user(autograder_admin_username, {'password_hash': password_hash})
+                db_service.logger.warning(f"⚠ Updated default admin password: {autograder_admin_username}")
+                print(f"⚠ Updated default admin password in DynamoDB: {autograder_admin_username}")
     except Exception as e:
         db_service.logger.error(f"✗ Error initializing DynamoDB: {e}", exc_info=True)
         print(f"✗ Error initializing DynamoDB: {e}")
         raise  # Re-raise to prevent app from starting if init fails
-
 
 if __name__ == '__main__':
     # for testing
