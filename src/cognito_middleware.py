@@ -28,7 +28,7 @@ def get_token_from_request() -> Optional[str]:
 
 def require_auth(required_roles: Optional[List] = None):
     """
-    Decorator to require authentication and optionally specific roles.
+    Decorator to require authentication using AWS Cognito and optionally specific roles.
     
     Usage:
         @require_auth()  # Any authenticated user
@@ -46,29 +46,13 @@ def require_auth(required_roles: Optional[List] = None):
                     'message': 'X-Authorization header is required'
                 }), 401
             
-            user_info = None
-            
-            # Try legacy token format FIRST (base64 encoded username:role)
+            # Verify token with Cognito
             try:
-                import base64
-                decoded = base64.b64decode(token).decode('utf-8')
-                if ':' in decoded:
-                    username, role = decoded.split(':', 1)
-                    user_info = {
-                        'username': username,
-                        'role': role
-                    }
+                user_info = cognito_auth.verify_token(token)
             except Exception:
-                pass
+                user_info = None
             
-            # If legacy token didn't work, try Cognito
-            if not user_info:
-                try:
-                    user_info = cognito_auth.verify_token(token)
-                except Exception:
-                    pass
-            
-            # If neither worked, reject
+            # If token verification failed, reject
             if not user_info:
                 return jsonify({
                     'error': 'Invalid token',
