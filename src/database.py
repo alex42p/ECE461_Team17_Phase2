@@ -203,7 +203,7 @@ def init_db():
     try:
         # Create the autograder's expected default admin user
         autograder_admin_username = "ece30861defaultadminuser"
-        autograder_admin_password = "correcthorsebatterystaple123(!__+@**(A'\"`;DROP TABLE artifacts;"
+        autograder_admin_password = r'''correcthorsebatterystaple123(!__+@**(A'"`;DROP TABLE artifacts;'''
         
         existing_admin = session.query(User).filter_by(username=autograder_admin_username).first()
         
