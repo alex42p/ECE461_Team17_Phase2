@@ -17,8 +17,8 @@ bcrypt
 PyJWT
 
 # Database
-SQLAlchemy
-psycopg2-binary
+SQLAlchemy>=2.0.0,<3.0.0
+psycopg2-binary>=2.9.9
 # psycopg2
 
 # AWS SDK
