@@ -90,7 +90,6 @@ if not logger.handlers:
 logger.debug('Logger initialized, writing to %s', LOG_FILE)
 
 try:
-    # from cognito_auth import CognitoAuthService
     from cognito_auth import CognitoAuthService
     cognito_auth = CognitoAuthService(AWS_ACCESS_KEY, AWS_SECRET_KEY)
     from cognito_middleware import (
@@ -98,10 +97,10 @@ try:
         optional_auth, get_current_user, rate_limit
     )
     USE_COGNITO = cognito_auth.enabled
-    logger.debug(f"Cognito authentication: {'ENABLED' if USE_COGNITO else 'DISABLED (using legacy auth)'}")
+    logger.debug(f"Cognito authentication: {'ENABLED' if USE_COGNITO else 'DISABLED'}")
 except Exception as e:
-    logger.error(f"Cognito not available: {e}")
-    logger.info("Using legacy authentication system")
+    logger.error(f"Cognito initialization failed: {e}")
+    logger.warning("Authentication will not be available")
     USE_COGNITO = False
 
 from health_monitor import health_monitor
@@ -262,8 +261,7 @@ def forbidden(error):
 @app.route('/authenticate', methods=['PUT'])
 def authenticate():
     """
-    Authenticate user and return access token.
-    Supports both Cognito and legacy auth.
+    Authenticate user and return access token using AWS Cognito.
     
     Request body:
     {
@@ -301,67 +299,21 @@ def authenticate():
             logger.warning('Authenticate missing username or password (username provided: %s)', bool(username))
             return jsonify({"error": "Username and password required"}), 400
 
-        logger.debug('Authenticating user: %s (cognito=%s)', username, USE_COGNITO)
+        logger.debug('Authenticating user: %s', username)
 
-        # Try Cognito if enabled, with fallback to legacy auth
-        logger.debug('Using Cognito: %s', USE_COGNITO)
-        cognito_failed = False
+        if not USE_COGNITO:
+            logger.error('Cognito authentication is not configured')
+            return jsonify({"error": "Authentication service not available"}), 503
         
-        if USE_COGNITO:
-            try:
-                result = cognito_auth.authenticate(username, password)
-                logger.info('User %s authenticated via Cognito', username)
-                # OpenAPI spec expects JSON string: "bearer TOKEN"
-                token = f"bearer {result['access_token']}"
-                return jsonify(token), 200
-            except Exception as cognito_error:
-                logger.warning('Cognito authentication failed for %s: %s', username, cognito_error)
-                logger.info('Falling back to legacy authentication for user: %s', username)
-                cognito_failed = True
-        
-        # Use legacy authentication if Cognito is disabled or failed
-        if not USE_COGNITO or cognito_failed:
-            logger.info('Using legacy database authentication for user: %s (cognito_failed=%s)', username, cognito_failed)
-            try:
-                # Check if user exists in database
-                session = get_db()
-                user = session.query(User).filter_by(username=username).first()
-                
-                if not user:
-                    logger.warning('Legacy auth: User %s not found in database', username)
-                    # List all users for debugging
-                    all_users = session.query(User.username).all()
-                    logger.debug('Available users in database: %s', [u[0] for u in all_users])
-                    return jsonify({"error": "Invalid credentials"}), 401
-                
-                if not user.is_active:
-                    logger.warning('Legacy auth: User %s exists but is inactive', username)
-                    return jsonify({"error": "Invalid credentials"}), 401
-                
-                # Verify password with bcrypt
-                import bcrypt
-                logger.debug('Verifying password for user %s', username)
-                if not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
-                    logger.warning('Legacy auth: Invalid password for user %s', username)
-                    return jsonify({"error": "Invalid credentials"}), 401
-                
-                # For legacy auth, return a simple token (username-based)
-                # This is for autograder compatibility
-                import base64
-                simple_token = base64.b64encode(f"{username}:{user.role.value}".encode()).decode()
-                
-                logger.info('✓ Legacy auth successful for user %s with role %s', username, user.role)
-                
-                # OpenAPI spec expects JSON string: "bearer TOKEN"
-                token = f"bearer {simple_token}"
-                return jsonify(token), 200
-                
-            except Exception as e:
-                logger.exception('✗ Error in legacy authentication for user %s: %s', username, e)
-                return jsonify({"error": "Authentication failed"}), 500
-            finally:
-                if 'session' in locals():
-                    session.close()
+        try:
+            result = cognito_auth.authenticate(username, password)
+            logger.info('User %s authenticated via Cognito', username)
+            # OpenAPI spec expects JSON string: "bearer TOKEN"
+            token = f"bearer {result['access_token']}"
+            return jsonify(token), 200
+        except Exception as cognito_error:
+            logger.warning('Cognito authentication failed for %s: %s', username, cognito_error)
+            return jsonify({"error": "Invalid credentials"}), 401
 
     except Exception as e:
         logger.exception('Error in authenticate endpoint')
@@ -371,7 +323,7 @@ def authenticate():
 #@require_admin()
 def create_user():
     """
-    Create a new user (admin only).
+    Create a new user using AWS Cognito (admin only).
     
     Request body:
     {
@@ -397,72 +349,26 @@ def create_user():
             logger.warning('Create user missing username or password')
             return jsonify({"error": "Username and password required"}), 400
 
-        logger.debug('Creating user %s with role %s (cognito=%s)', username, role_str, USE_COGNITO)
+        logger.debug('Creating user %s with role %s', username, role_str)
 
-        if USE_COGNITO:
-            # Cognito user creation
-            valid_roles = ["admin", "uploader", "searcher", "downloader"]
-            if role_str not in valid_roles:
-                logger.warning('Invalid role provided for create_user: %s', role_str)
-                return jsonify({
-                    "error": f"Invalid role. Must be one of: {valid_roles}"
-                }), 400
+        if not USE_COGNITO:
+            logger.error('Cognito authentication is not configured')
+            return jsonify({"error": "User management service not available"}), 503
 
-            user = cognito_auth.create_user(username, email, password, role_str)
-            logger.info('Created Cognito user %s', username)
+        # Cognito user creation
+        valid_roles = ["admin", "uploader", "searcher", "downloader"]
+        if role_str not in valid_roles:
+            logger.warning('Invalid role provided for create_user: %s', role_str)
             return jsonify({
-                "success": True,
-                "user": user
-            }), 201
-        else:
-            # Legacy user creation using database
-            logger.info('Creating user via legacy auth: %s', username)
-            try:
-                import bcrypt
-                
-                # Validate role
-                valid_roles = ["admin", "uploader", "searcher", "downloader"]
-                if role_str not in valid_roles:
-                    return jsonify({"error": f"Invalid role. Must be one of: {valid_roles}"}), 400
-                
-                # Check if user already exists
-                session = get_db()
-                existing = session.query(User).filter_by(username=username).first()
-                if existing:
-                    logger.warning('User %s already exists', username)
-                    return jsonify({"error": "User already exists"}), 409
-                
-                # Hash password
-                password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                
-                # Create user
-                role_enum = UserRole[role_str.upper()]
-                new_user = User(
-                    username=username,
-                    password_hash=password_hash,
-                    role=role_enum,
-                    is_active=True
-                )
-                session.add(new_user)
-                session.commit()
-                
-                logger.info('Created legacy user %s with role %s', username, role_str)
-                return jsonify({
-                    "success": True,
-                    "user": {
-                        "username": username,
-                        "role": role_str
-                    }
-                }), 201
-                
-            except Exception as e:
-                logger.exception('Error creating legacy user')
-                if 'session' in locals():
-                    session.rollback()
-                return jsonify({"error": "User creation failed"}), 500
-            finally:
-                if 'session' in locals():
-                    session.close()
+                "error": f"Invalid role. Must be one of: {valid_roles}"
+            }), 400
+
+        user = cognito_auth.create_user(username, email, password, role_str)
+        logger.info('Created Cognito user %s', username)
+        return jsonify({
+            "success": True,
+            "user": user
+        }), 201
 
     except ValueError as e:
         logger.exception('ValueError in create_user')
@@ -475,44 +381,18 @@ def create_user():
 #@require_admin()
 def delete_user(username: str):
     """
-    Delete a user (admin only).
+    Delete a user using AWS Cognito (admin only).
     """
     try:
         logger.info('Delete user called for %s by %s', username, request.remote_addr)
-        if USE_COGNITO:
-            # Delete user from Cognito
-            cognito_auth.delete_user(username)
-            logger.info('Deleted Cognito user %s', username)
-        else:
-            # Legacy user deletion using database
-            logger.info('Deleting user via legacy auth: %s', username)
-            try:
-                session = get_db()
-                user = session.query(User).filter_by(username=username).first()
-                
-                if not user:
-                    logger.warning('User %s not found for deletion', username)
-                    return jsonify({"error": "User not found"}), 404
-                
-                # Delete user
-                session.delete(user)
-                session.commit()
-                
-                logger.info('Deleted legacy user %s', username)
-                return jsonify({
-                    "success": True,
-                    "message": f"User {username} deleted"
-                }), 200
-                
-            except Exception as e:
-                logger.exception('Error deleting legacy user')
-                if 'session' in locals():
-                    session.rollback()
-                return jsonify({"error": "User deletion failed"}), 500
-            finally:
-                if 'session' in locals():
-                    session.close()
-
+        
+        if not USE_COGNITO:
+            logger.error('Cognito authentication is not configured')
+            return jsonify({"error": "User management service not available"}), 503
+        
+        # Delete user from Cognito
+        cognito_auth.delete_user(username)
+        logger.info('Deleted Cognito user %s', username)
         return jsonify({"success": True, "message": f"User {username} deleted"}), 200
 
     except ValueError as e:
@@ -525,48 +405,22 @@ def delete_user(username: str):
 @app.route('/users', methods=['GET'])
 #@require_admin()
 def list_users():
-    """List all users (admin only)."""
+    """List all users using AWS Cognito (admin only)."""
     try:
         logger.info('List users called by %s', request.remote_addr)
-        if USE_COGNITO:
-            # Get users from Cognito
-            users = cognito_auth.list_users()
-            logger.debug('Found %s users', len(users))
-            return jsonify({
-                "success": True,
-                "count": len(users),
-                "users": users
-            }), 200
-        else:
-            # Legacy list users using database
-            logger.info('Listing users via legacy auth')
-            try:
-                session = get_db()
-                users = session.query(User).filter_by(is_active=True).all()
-                
-                user_list = [
-                    {
-                        "username": u.username,
-                        "role": u.role.value,
-                        "created_at": u.created_at.isoformat(),
-                        "is_active": u.is_active
-                    }
-                    for u in users
-                ]
-                
-                logger.info('Retrieved %d legacy users', len(user_list))
-                return jsonify({
-                    "success": True,
-                    "count": len(user_list),
-                    "users": user_list
-                }), 200
-                
-            except Exception as e:
-                logger.exception('Error listing legacy users')
-                return jsonify({"error": "User listing failed"}), 500
-            finally:
-                if 'session' in locals():
-                    session.close()
+        
+        if not USE_COGNITO:
+            logger.error('Cognito authentication is not configured')
+            return jsonify({"error": "User management service not available"}), 503
+        
+        # Get users from Cognito
+        users = cognito_auth.list_users()
+        logger.debug('Found %s users', len(users))
+        return jsonify({
+            "success": True,
+            "count": len(users),
+            "users": users
+        }), 200
 
     except Exception as e:
         logger.exception('Error in list_users')
