@@ -13,6 +13,7 @@ import logging
 from typing import Any, Dict, Tuple, Optional
 from flask import Flask, request, jsonify, render_template, g
 from datetime import datetime, timezone
+from decimal import Decimal
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -151,6 +152,20 @@ dynamodb_service = DynamoDBService(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, D
 # Initialize database on startup
 with app.app_context():
     init_db()
+
+def convert_floats_to_decimals(obj):
+    """
+    Recursively convert all float values to Decimal for DynamoDB compatibility.
+    DynamoDB doesn't support float types, only Decimal.
+    """
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    elif isinstance(obj, dict):
+        return {k: convert_floats_to_decimals(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_floats_to_decimals(item) for item in obj]
+    else:
+        return obj
 
 @app.route('/')
 def home():
@@ -921,8 +936,8 @@ def upload_artifact(artifact_type: str):
                 'version': version,
                 'artifact_type': artifact_type,
                 'url': url,
-                'scores': scores,
-                'metadata': package_info,  # Store full package info
+                'scores': convert_floats_to_decimals(scores),
+                'metadata': convert_floats_to_decimals(package_info),  # Store full package info
                 'created_at': package_info.get('created_at'),
                 'is_deleted': False      
             }
