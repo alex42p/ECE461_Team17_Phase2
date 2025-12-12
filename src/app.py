@@ -146,7 +146,7 @@ dynamodb_service = DynamoDBService(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, D
 
 # Initialize database on startup
 with app.app_context():
-    init_db()
+    dynamodb_service.init_db() # TODO: make sure this works and doesn't fucking kill everything
 
 def convert_floats_to_decimals(obj):
     """
@@ -707,7 +707,7 @@ def query_artifacts():
 
 @app.route('/reset', methods=['DELETE'])
 #@require_admin()
-def reset_system():
+def reset_system(): # TODO: make sure this works properly
     """
     Reset system to initial state (admin only).
     Clears all packages and resets database.
@@ -801,7 +801,7 @@ def reset_system():
         
         # Reinitialize with default admin
         try:
-            init_db()
+            dynamodb_service.init_db()
             logger.info('Database reinitialized with default admin')
         except Exception as e:
             logger.error('Database reinitialization failed: %s', e)
