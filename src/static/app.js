@@ -4,21 +4,10 @@
  */
 
 // Global state
-let authToken = null;
 let currentUser = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Check for stored token
-    const storedToken = localStorage.getItem('authToken');
-    const storedUser = localStorage.getItem('currentUser');
-    
-    if (storedToken && storedUser) {
-        authToken = storedToken;
-        currentUser = JSON.parse(storedUser);
-        updateAuthUI();
-    }
-
     // Load initial health status
     loadHealthStatus();
 });
@@ -45,7 +34,7 @@ function showAlert(message, type = 'info') {
 }
 
 /**
- * Make authenticated API request
+ * Make API request
  */
 async function apiRequest(url, options = {}) {
     const headers = {
@@ -53,21 +42,10 @@ async function apiRequest(url, options = {}) {
         ...options.headers
     };
 
-    if (authToken) {
-        headers['X-Authorization'] = `Bearer ${authToken}`;
-    }
-
     const response = await fetch(url, {
         ...options,
         headers
     });
-
-    if (response.status === 401) {
-        // Token expired
-        logout();
-        showAlert('Session expired. Please login again.', 'warning');
-        throw new Error('Authentication required');
-    }
 
     return response;
 }
@@ -76,12 +54,8 @@ async function apiRequest(url, options = {}) {
  * Toggle authentication modal
  */
 function toggleAuthModal() {
-    if (authToken) {
-        logout();
-    } else {
-        const modal = new bootstrap.Modal(document.getElementById('authModal'));
-        modal.show();
-    }
+    const modal = new bootstrap.Modal(document.getElementById('authModal'));
+    modal.show();
 }
 
 /**
@@ -89,59 +63,14 @@ function toggleAuthModal() {
  */
 async function authenticate(event) {
     event.preventDefault();
-
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
-
-    try {
-        const response = await fetch('/authenticate', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                User: { name: username, isAdmin: false },
-                Secret: { password: password }
-            })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            authToken = data.token;
-            currentUser = data.user;
-
-            // Store in localStorage
-            localStorage.setItem('authToken', authToken);
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-
-            // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('authModal'));
-            modal.hide();
-
-            // Update UI
-            updateAuthUI();
-            showAlert(`Welcome, ${currentUser.name}!`, 'success');
-
-            // Reset form
-            document.getElementById('auth-form').reset();
-        } else {
-            showAlert(data.error || 'Authentication failed', 'danger');
-        }
-    } catch (error) {
-        showAlert('Network error. Please try again.', 'danger');
-        console.error('Authentication error:', error);
-    }
+    showAlert('Authentication is not available', 'warning');
 }
 
 /**
  * Logout user
  */
 function logout() {
-    authToken = null;
     currentUser = null;
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('currentUser');
     updateAuthUI();
     showAlert('Logged out successfully', 'info');
 }
@@ -155,19 +84,9 @@ function updateAuthUI() {
     const adminNavItem = document.getElementById('admin-nav-item');
     const adminSection = document.getElementById('admin-section');
 
-    if (authToken && currentUser) {
-        authButtonText.textContent = `Logout (${currentUser.name})`;
-
-        // Show admin section for admins
-        if (currentUser.role === 'admin') {
-            adminNavItem.style.display = 'block';
-            adminSection.style.display = 'block';
-        }
-    } else {
-        authButtonText.textContent = 'Login';
-        adminNavItem.style.display = 'none';
-        adminSection.style.display = 'none';
-    }
+    authButtonText.textContent = 'Login';
+    adminNavItem.style.display = 'none';
+    adminSection.style.display = 'none';
 }
 
 /**
@@ -178,11 +97,6 @@ async function searchPackages(event) {
 
     const searchInput = document.getElementById('search-input').value;
     const resultsContainer = document.getElementById('search-results');
-
-    if (!authToken) {
-        showAlert('Please login to search packages', 'warning');
-        return;
-    }
 
     // Show loading
     resultsContainer.innerHTML = '<div class="spinner-container"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
@@ -254,11 +168,6 @@ function displaySearchResults(packages) {
  */
 async function uploadPackage(event) {
     event.preventDefault();
-
-    if (!authToken) {
-        showAlert('Please login to upload packages', 'warning');
-        return;
-    }
 
     const name = document.getElementById('package-name').value;
     const version = document.getElementById('package-version').value;
@@ -391,29 +300,7 @@ function displayHealthStatus(data) {
  * Load users (admin only)
  */
 async function loadUsers() {
-    if (!authToken || currentUser?.role !== 'admin') {
-        showAlert('Admin access required', 'danger');
-        return;
-    }
-
-    const usersContainer = document.getElementById('users-list');
-    usersContainer.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>';
-
-    try {
-        const response = await apiRequest('/users');
-        const data = await response.json();
-
-        if (response.ok && data.users) {
-            displayUsers(data.users);
-        } else {
-            showAlert(data.error || 'Failed to load users', 'danger');
-            usersContainer.innerHTML = '';
-        }
-    } catch (error) {
-        showAlert('Error loading users', 'danger');
-        console.error('Load users error:', error);
-        usersContainer.innerHTML = '';
-    }
+    showAlert('User management is not available', 'warning');
 }
 
 /**
@@ -445,11 +332,6 @@ function displayUsers(users) {
  * Reset system (admin only)
  */
 async function resetSystem() {
-    if (!authToken || currentUser?.role !== 'admin') {
-        showAlert('Admin access required', 'danger');
-        return;
-    }
-
     if (!confirm('Are you sure you want to reset the entire system? This action cannot be undone.')) {
         return;
     }
@@ -489,10 +371,6 @@ function escapeHtml(text) {
  * View package details
  */
 async function viewPackageDetails(packageId) {
-    if (!authToken) {
-        showAlert('Please login to view package details', 'warning');
-        return;
-    }
 
     try {
         const response = await apiRequest(`/package/${packageId}`);
