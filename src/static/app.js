@@ -63,7 +63,10 @@ function toggleAuthModal() {
  */
 async function authenticate(event) {
     event.preventDefault();
-    showAlert('Authentication is not available', 'warning');
+    // showAlert('Authentication is not available', 'warning');
+    // const response = await apiRequest('/authenticate', {});
+    // const data = await response.json();
+    showAlert('Not implemented', 'warning');
 }
 
 /**

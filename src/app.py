@@ -262,7 +262,6 @@ def authenticate():
     Returns:
         501: Not implemented
     """
-    # try:
     logger.info('Authenticate endpoint called from %s', request.remote_addr)
     return jsonify({"error": "Not implemented"}), 501
 
@@ -288,7 +287,7 @@ def health_check():
 def get_tracks():
     """Get system tracks (for autograder tracking)."""
     # OpenAPI spec requires exact case: "Access control track" (lowercase c and t)
-    planned_tracks = ["High assurance track", "Access control track"]
+    planned_tracks = ["Access control track", "High assurance track"]
     logger.info('Tracks endpoint called, returning plannedTracks: %s', planned_tracks)
     return jsonify({
         "plannedTracks": planned_tracks
