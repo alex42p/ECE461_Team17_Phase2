@@ -98,8 +98,8 @@ logger.info("Removed Cognito Authentication - not actually necessary after all F
 #     logger.warning("Authentication will not be available")
 #     USE_COGNITO = False
 
-from health_monitor import health_monitor
-from audit_service import AuditService
+# from health_monitor import health_monitor
+# from audit_service import AuditService
 
 # Import Phase 1 modules for scoring
 from base import HFModelURL
@@ -183,7 +183,7 @@ def after_request(response):
     """Record request metrics and cleanup."""
     route = request.endpoint or request.path
     success = response.status_code < 400
-    health_monitor.record_request(route, success)
+    # health_monitor.record_request(route, success)
     try:
         start = getattr(g, 'request_start_time', None)
         if start:
@@ -288,66 +288,68 @@ def health_check():
 def get_tracks():
     """Get system tracks (for autograder tracking)."""
     # OpenAPI spec requires exact case: "Access control track" (lowercase c and t)
-    planned_tracks = ["High assurance track"]
+    planned_tracks = ["High assurance track", "Access control track"]
     logger.info('Tracks endpoint called, returning plannedTracks: %s', planned_tracks)
     return jsonify({
         "plannedTracks": planned_tracks
     }), 200
 
-@app.route('/health/components', methods=['GET'])
-def health_components():
-    """
-    Detailed component health check (admin only).
-    Returns health status of all system components.
-    """
-    try:
-        logger.info('Health components requested by %s', request.remote_addr)
-        summary = health_monitor.get_health_summary()
-        route_stats = health_monitor.get_route_statistics()
+# @app.route('/health/components', methods=['GET'])
+# def health_components():
+#     """
+#     Detailed component health check (admin only).
+#     Returns health status of all system components.
+#     """
+#     try:
+#         logger.info('Health components requested by %s', request.remote_addr)
+#         summary = health_monitor.get_health_summary()
+#         route_stats = health_monitor.get_route_statistics()
 
-        logger.debug('Health summary: %s', summary)
-        return jsonify({
-            **summary,
-            "route_statistics": route_stats
-        }), 200
+#         logger.debug('Health summary: %s', summary)
+#         return jsonify({
+#             **summary,
+#             "route_statistics": route_stats
+#         }), 200
 
-    except Exception as e:
-        logger.exception('Error fetching health components')
-        return jsonify({
-            "status": "critical",
-            "error": str(e),
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }), 500
+#     except Exception as e:
+#         logger.exception('Error fetching health components')
+#         return jsonify({
+#             "status": "critical",
+#             "error": str(e),
+#             "timestamp": datetime.now(timezone.utc).isoformat()
+#         }), 500
 
 # ============================================================================
 # AUDIT TRAIL ENDPOINTS
 # ============================================================================
 
-@app.route('/artifact/<artifact_type>/<artifact_id>/downloads', methods=['GET'])
-# @require_auth()
-def get_download_history(artifact_type: str, artifact_id: str):
-    """Get download history for an artifact."""
-    try:
-        limit = min(int(request.args.get('limit', 100)), 500)
 
-        logger.info('Get download history called for %s/%s (limit=%s) by %s', artifact_type, artifact_id, limit, request.remote_addr)
-        session = get_db()
-        audit_service = AuditService(session)
 
-        downloads = audit_service.get_download_history(artifact_id, limit)
-        logger.debug('Found %s downloads for %s', len(downloads), artifact_id)
+# @app.route('/artifact/<artifact_type>/<artifact_id>/downloads', methods=['GET'])
+# # @require_auth()
+# def get_download_history(artifact_type: str, artifact_id: str):
+#     """Get download history for an artifact."""
+#     try:
+#         limit = min(int(request.args.get('limit', 100)), 500)
 
-        return jsonify({
-            "artifact_id": artifact_id,
-            "artifact_type": artifact_type,
-            "count": len(downloads),
-            "limit": limit,
-            "downloads": downloads
-        }), 200
+#         logger.info('Get download history called for %s/%s (limit=%s) by %s', artifact_type, artifact_id, limit, request.remote_addr)
+#         session = get_db()
+#         audit_service = AuditService(session)
 
-    except Exception as e:
-        logger.exception('Error in get_download_history')
-        return jsonify({"error": str(e)}), 500
+#         downloads = audit_service.get_download_history(artifact_id, limit)
+#         logger.debug('Found %s downloads for %s', len(downloads), artifact_id)
+
+#         return jsonify({
+#             "artifact_id": artifact_id,
+#             "artifact_type": artifact_type,
+#             "count": len(downloads),
+#             "limit": limit,
+#             "downloads": downloads
+#         }), 200
+
+#     except Exception as e:
+#         logger.exception('Error in get_download_history')
+#         return jsonify({"error": str(e)}), 500
 
 # ============================================================================
 # PACKAGE ENDPOINTS (with authentication and audit logging)
@@ -381,7 +383,6 @@ def upload_package():
         version = data.get("version", "1.0.0")
         url = data.get("url")
         is_sensitive = data.get("is_sensitive", False)
-        monitoring_script = data.get("monitoring_script")
         artifact_type = data.get("artifact_type", "model")  
 
         # Validation
@@ -433,19 +434,6 @@ def upload_package():
                 logger.warning('Failed to save package %s to DynamoDB', package_info['id'])
         except Exception as e:
             logger.exception('Error saving package to DynamoDB: %s', e)
-
-        # # Log to audit trail
-        # session = get_db()
-        # audit_service = AuditService(session)
-        # audit_service.log_create(
-        #     artifact_id=package_info["id"],
-        #     artifact_type="model",  # TODO: detect type from URL
-        #     username=current_user["username"] if current_user else None,
-        #     artifact_name=name,
-        #     artifact_version=version
-        # )
-        # session.commit()
-        # logger.debug('Audit log created for package %s', package_info.get('id'))
 
         return jsonify({
             "success": True,
