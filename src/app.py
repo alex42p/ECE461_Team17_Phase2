@@ -266,8 +266,8 @@ def health_check():
 @app.route('/tracks', methods=['GET'])
 def get_tracks():
     """Get system tracks (for autograder tracking)."""
-    # OpenAPI spec requires exact case: "Access control track" (lowercase c and t)
-    planned_tracks = ["Access control track", "High assurance track"]
+    # planned_tracks = ["Access control track", "High assurance track"]
+    planned_tracks = ["Access control track"]
     logger.info('Tracks endpoint called, returning plannedTracks: %s', planned_tracks)
     return jsonify({
         "plannedTracks": planned_tracks
