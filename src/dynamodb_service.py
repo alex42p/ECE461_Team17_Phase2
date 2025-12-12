@@ -54,6 +54,8 @@ class DynamoDBService:
         Initialize DynamoDB service.
         
         Args:
+            aws_access_key: AWS access key ID
+            aws_secret_key: AWS secret access key
             region_name: AWS region
             endpoint_url: Optional endpoint for local development (DynamoDB Local)
         """

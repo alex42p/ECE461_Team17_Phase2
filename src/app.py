@@ -6,7 +6,6 @@ This is the main application file with all security and observability features.
 import os
 import subprocess
 import tempfile
-import shutil
 import json
 from pathlib import Path
 import logging 
@@ -52,7 +51,6 @@ if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT, FLASK
     AWS_REGION = "us-east-2"
 
     # Create a Secrets Manager client
-    # session = boto3.session.Session()
     client = boto3.client(
         'secretsmanager',
         region_name=AWS_REGION
@@ -70,7 +68,7 @@ if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT, FLASK
         FLASK_SECRET_KEY = secret_dict.get("FLASK_SECRET_KEY")
         GITHUB_TOKEN = secret_dict.get("GITHUB_TOKEN")
         S3_BUCKET_NAME = secret_dict.get("S3_BUCKET_NAME")
-        logger.info("Loaded secrets from AWS Secrets Manager")
+        logger.info("Successfully loaded secrets from AWS Secrets Manager")
     except ClientError as e:
         # secrets manager error - unable to use global variables
         logger.error(f"Could not load from Secrets Manager ({e}), using environment variables")
@@ -79,27 +77,10 @@ if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT, FLASK
 from storage import S3Storage
 
 # Import database and services
-from database import get_db, init_db, UserRole, AuditAction, db_manager, User
+from database import db_manager
 from dynamodb_service import DynamoDBService
 
 logger.info("Removed Cognito Authentication - not actually necessary after all FML")
-
-# try:
-#     from cognito_auth import CognitoAuthService
-#     cognito_auth = CognitoAuthService(AWS_ACCESS_KEY, AWS_SECRET_KEY)
-#     from cognito_middleware import (
-#         require_auth, require_admin, require_uploader, require_downloader,
-#         optional_auth, get_current_user
-#     )
-#     USE_COGNITO = cognito_auth.enabled
-#     logger.debug(f"Cognito authentication: {'ENABLED' if USE_COGNITO else 'DISABLED'}")
-# except Exception as e:
-#     logger.error(f"Cognito initialization failed: {e}")
-#     logger.warning("Authentication will not be available")
-#     USE_COGNITO = False
-
-# from health_monitor import health_monitor
-# from audit_service import AuditService
 
 # Import Phase 1 modules for scoring
 from base import HFModelURL
@@ -110,7 +91,7 @@ from metric import Metric
 from concurrency import compute_all_metrics
 
 # Import metric modules so they register as subclasses
-import license as license_metric
+import license
 import code_quality
 import dataset_quality
 import ramp_up_time
@@ -121,7 +102,6 @@ import size_score
 import reproducibility
 import reviewedness
 import tree_score
-
 
 
 app = Flask(__name__)
@@ -293,183 +273,125 @@ def get_tracks():
         "plannedTracks": planned_tracks
     }), 200
 
-# @app.route('/health/components', methods=['GET'])
-# def health_components():
-#     """
-#     Detailed component health check (admin only).
-#     Returns health status of all system components.
-#     """
-#     try:
-#         logger.info('Health components requested by %s', request.remote_addr)
-#         summary = health_monitor.get_health_summary()
-#         route_stats = health_monitor.get_route_statistics()
-
-#         logger.debug('Health summary: %s', summary)
-#         return jsonify({
-#             **summary,
-#             "route_statistics": route_stats
-#         }), 200
-
-#     except Exception as e:
-#         logger.exception('Error fetching health components')
-#         return jsonify({
-#             "status": "critical",
-#             "error": str(e),
-#             "timestamp": datetime.now(timezone.utc).isoformat()
-#         }), 500
-
 # ============================================================================
-# AUDIT TRAIL ENDPOINTS
+# PACKAGE ENDPOINTS
 # ============================================================================
 
-
-
-# @app.route('/artifact/<artifact_type>/<artifact_id>/downloads', methods=['GET'])
-# # @require_auth()
-# def get_download_history(artifact_type: str, artifact_id: str):
-#     """Get download history for an artifact."""
+# @app.route('/package', methods=['POST'])
+# # @rate_limit(max_requests=50, window_seconds=60)
+# def upload_package():
+#     """
+#     Ingest a package and score it (requires uploader role).
+    
+#     Request body:
+#     {
+#         "name": "package-name",
+#         "version": "1.0.0",
+#         "url": "https://huggingface.co/model-name",
+#         "is_sensitive": false,
+#         "monitoring_script": "optional JS code"
+#     }
+#     """
 #     try:
-#         limit = min(int(request.args.get('limit', 100)), 500)
+#         logger.info('Upload package called by %s', request.remote_addr)
+#         data = request.get_json()
 
-#         logger.info('Get download history called for %s/%s (limit=%s) by %s', artifact_type, artifact_id, limit, request.remote_addr)
-#         session = get_db()
-#         audit_service = AuditService(session)
+#         if not data:
+#             logger.warning('upload_package called without body')
+#             return jsonify({"error": "Request body required"}), 400
 
-#         downloads = audit_service.get_download_history(artifact_id, limit)
-#         logger.debug('Found %s downloads for %s', len(downloads), artifact_id)
+#         name = data.get("name")
+#         version = data.get("version", "1.0.0")
+#         url = data.get("url")
+#         is_sensitive = data.get("is_sensitive", False)
+#         artifact_type = data.get("artifact_type", "model")  
+
+#         # Validation
+#         if not name:
+#             logger.warning('upload_package missing name')
+#             return jsonify({"error": "Package name required"}), 400
+
+#         if not url:
+#             logger.warning('upload_package missing url')
+#             return jsonify({"error": "Package URL required"}), 400
+
+#         logger.debug('Uploading package %s version=%s url=%s sensitive=%s', name, version, url, is_sensitive)
+
+#         # Run scoring
+#         logger.info('Starting scoring for package %s', name)
+#         scores = run_scoring(url)
+#         logger.debug('Scoring results for %s: %s', name, scores)
+
+#         # Get current user
+#         # current_user = get_current_user()
+
+#         # Save package
+#         package_info = storage.save_package(
+#             name=name,
+#             version=version,
+#             url=url,
+#             scores=scores
+#         )
+#         logger.info('Package saved with id %s', package_info.get('id'))
+
+#         # Save to DynamoDB
+#         try:
+#             dynamodb_package = {
+#                     'id': package_info['id'],
+#                     'name': name,
+#                     'version': version,
+#                     'artifact_type': artifact_type,
+#                     'url': url,
+#                     'scores': scores,
+#                     'metadata': package_info,
+#                     'created_at': package_info.get('created_at'),
+#                     'is_deleted': False
+#             }
+
+#             saved_to_db = dynamodb_service.create_package(dynamodb_package)
+#             if saved_to_db:
+#                 logger.info('Package %s saved to DynamoDB', package_info['id'])
+#             else:
+#                 logger.warning('Failed to save package %s to DynamoDB', package_info['id'])
+#         except Exception as e:
+#             logger.exception('Error saving package to DynamoDB: %s', e)
 
 #         return jsonify({
-#             "artifact_id": artifact_id,
-#             "artifact_type": artifact_type,
-#             "count": len(downloads),
-#             "limit": limit,
-#             "downloads": downloads
-#         }), 200
+#             "success": True,
+#             "package_id": package_info["id"],
+#             "name": name,
+#             "version": version,
+#             "url": url,
+#             "scores": scores,
+#             "message": "Package ingested and scored successfully"
+#         }), 201
 
 #     except Exception as e:
-#         logger.exception('Error in get_download_history')
+#         logger.exception('Error in upload_package')
 #         return jsonify({"error": str(e)}), 500
 
-# ============================================================================
-# PACKAGE ENDPOINTS (with authentication and audit logging)
-# ============================================================================
+# @app.route('/package/<package_id>', methods=['GET'])
+# # @require_auth()
+# def get_package(package_id: str):
+#     """
+#     Retrieve package by ID (requires authentication).
+#     """
+#     try:
+#         logger.info('Get package called for id=%s by %s', package_id, request.remote_addr)
+#         package = storage.get_package(package_id)
 
-@app.route('/package', methods=['POST'])
-# @require_uploader()
-# @rate_limit(max_requests=50, window_seconds=60)
-def upload_package():
-    """
-    Ingest a package and score it (requires uploader role).
-    
-    Request body:
-    {
-        "name": "package-name",
-        "version": "1.0.0",
-        "url": "https://huggingface.co/model-name",
-        "is_sensitive": false,
-        "monitoring_script": "optional JS code"
-    }
-    """
-    try:
-        logger.info('Upload package called by %s', request.remote_addr)
-        data = request.get_json()
+#         if not package:
+#             logger.info('Package %s not found', package_id)
+#             return jsonify({"error": f"Package {package_id} not found"}), 404
 
-        if not data:
-            logger.warning('upload_package called without body')
-            return jsonify({"error": "Request body required"}), 400
+#         logger.debug('Returning package %s', package_id)
+#         return jsonify(package), 200
 
-        name = data.get("name")
-        version = data.get("version", "1.0.0")
-        url = data.get("url")
-        is_sensitive = data.get("is_sensitive", False)
-        artifact_type = data.get("artifact_type", "model")  
+#     except Exception as e:
+#         logger.exception('Error in get_package')
+#         return jsonify({"error": str(e)}), 500
 
-        # Validation
-        if not name:
-            logger.warning('upload_package missing name')
-            return jsonify({"error": "Package name required"}), 400
-
-        if not url:
-            logger.warning('upload_package missing url')
-            return jsonify({"error": "Package URL required"}), 400
-
-        logger.debug('Uploading package %s version=%s url=%s sensitive=%s', name, version, url, is_sensitive)
-
-        # Run scoring
-        logger.info('Starting scoring for package %s', name)
-        scores = run_scoring(url)
-        logger.debug('Scoring results for %s: %s', name, scores)
-
-        # Get current user
-        # current_user = get_current_user()
-
-        # Save package
-        package_info = storage.save_package(
-            name=name,
-            version=version,
-            url=url,
-            scores=scores
-        )
-        logger.info('Package saved with id %s', package_info.get('id'))
-
-        # Save to DynamoDB
-        try:
-            dynamodb_package = {
-                    'id': package_info['id'],
-                    'name': name,
-                    'version': version,
-                    'artifact_type': artifact_type,
-                    'url': url,
-                    'scores': scores,
-                    'metadata': package_info,
-                    'created_at': package_info.get('created_at'),
-                    'is_deleted': False
-            }
-
-            saved_to_db = dynamodb_service.create_package(dynamodb_package)
-            if saved_to_db:
-                logger.info('Package %s saved to DynamoDB', package_info['id'])
-            else:
-                logger.warning('Failed to save package %s to DynamoDB', package_info['id'])
-        except Exception as e:
-            logger.exception('Error saving package to DynamoDB: %s', e)
-
-        return jsonify({
-            "success": True,
-            "package_id": package_info["id"],
-            "name": name,
-            "version": version,
-            "url": url,
-            "scores": scores,
-            "message": "Package ingested and scored successfully"
-        }), 201
-
-    except Exception as e:
-        logger.exception('Error in upload_package')
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/package/<package_id>', methods=['GET'])
-# @require_auth()
-def get_package(package_id: str):
-    """
-    Retrieve package by ID (requires authentication).
-    """
-    try:
-        logger.info('Get package called for id=%s by %s', package_id, request.remote_addr)
-        package = storage.get_package(package_id)
-
-        if not package:
-            logger.info('Package %s not found', package_id)
-            return jsonify({"error": f"Package {package_id} not found"}), 404
-
-        logger.debug('Returning package %s', package_id)
-        return jsonify(package), 200
-
-    except Exception as e:
-        logger.exception('Error in get_package')
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/packages/byRegex', methods=['GET'])
+@app.route('/artifact/byRegex', methods=['GET'])
 # @require_auth()
 # @rate_limit(max_requests=100, window_seconds=60)
 def search_by_regex():
@@ -507,10 +429,23 @@ def search_by_regex():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/artifact/<artifact_type>', methods=['POST'])
-# @require_uploader()
-# @rate_limit(max_requests=50, window_seconds=60)
 def upload_artifact(artifact_type: str):
-    """Upload/Ingest an artifact (requires uploader role)."""
+    """
+    Upload/Ingest an artifact (requires uploader role).
+    
+    Args: artifact_type in ['model', 'dataset', 'code']
+
+    Request body:
+    {
+        "url": "https://huggingface.co/model-name"
+    }
+    Response body:
+    {
+        "metadata": {"name", "type", "id"},
+        "data": {"url", "download_url"}
+    }
+    """
+    
     try:
         if artifact_type not in ['model', 'dataset', 'code']:
             return jsonify({"error": f"Invalid artifact type: {artifact_type}"}), 400
@@ -519,16 +454,16 @@ def upload_artifact(artifact_type: str):
         if not data:
             return jsonify({"error": "Request body required"}), 400
 
-        name = data.get("name")
-        version = data.get("version", "1.0.0")
         url = data.get("url")
-        if not name:
-            return jsonify({"error": "Artifact name required"}), 400
         if not url:
             return jsonify({"error": "URL is required"}), 400
 
-        # Run scoring (no threshold check - accept all artifacts like /package endpoint)
-        scores = run_scoring(url)
+        scoring_dict = run_scoring(url)
+        scores = scoring_dict.get("scores", {})
+        metadata = scoring_dict.get("metadata", {})
+
+        name = metadata.get("hf_metadata").get("repo_id")
+        version = "1.0.0"  # Default versioning bc who tf cares
 
         # Save artifact with artifact_type
         package_info = storage.save_package(name=name, version=version, url=url, scores=scores)
@@ -545,7 +480,7 @@ def upload_artifact(artifact_type: str):
             dynamodb_package = {
                 'id': package_info['id'],
                 'name': name,
-                'version': version,
+                # 'version': version,
                 'artifact_type': artifact_type,
                 'url': url,
                 'scores': convert_floats_to_decimals(scores),
@@ -562,20 +497,6 @@ def upload_artifact(artifact_type: str):
                 logger.warning('Failed to save package %s to DynamoDB', package_info['id'])
         except Exception as e:
             logger.exception('Error saving package to DynamoDB: %s', e)
-
-        # # Audit logging
-        # # current_user = get_current_user()
-        # session = get_db()
-        # audit_service = AuditService(session)
-        # audit_service.log_create(
-        #     artifact_id=package_info["id"],
-        #     artifact_type=artifact_type,
-        #     username=current_user["username"] if current_user else None,
-        #     artifact_name=name,
-        #     artifact_version=version
-        # )
-        # session.commit()
-        # session.close()
 
         return jsonify({
             "success": True,
@@ -1005,6 +926,8 @@ def run_scoring(url: str) -> Dict[str, Any]:
             "nof_code_ds": nof_code_ds
         }
 
+        logger.debug('Model metadata for %s: %s', url, hf_metadata["repo_id"]) # type: ignore
+
         # Run all metrics
         metrics = [cls() for cls in Metric.__subclasses__()]  # type: ignore
 
@@ -1034,11 +957,11 @@ def run_scoring(url: str) -> Dict[str, Any]:
         weights = {
             "ramp_up_time": 0.20,           # Same
             "license": 0.15,                # Same
-            "dataset_and_code_score": 0.10, # Same
             "performance_claims": 0.10,     # Same
-            "bus_factor": 0.07,             # Reduced from 0.10
+            "bus_factor": 0.10,             # Same
             "code_quality": 0.12,           # Reduced from 0.15
             "dataset_quality": 0.12,        # Reduced from 0.15
+            "dataset_and_code_score": 0.07, # Reduced from 0.10
             "size_score": 0.05,             # Same
             "reproducibility": 0.03,        # NEW
             "reviewedness": 0.03,           # NEW
@@ -1048,6 +971,12 @@ def run_scoring(url: str) -> Dict[str, Any]:
         net_score = 0.0
         for metric_name, weight in weights.items():
             if metric_name in scores:
+                # special handling for size score - average of all 4 values in size_score dict
+                if metric_name == "size_score":
+                    size_dict = scores[metric_name].get("value", {})
+                    if size_dict:
+                        avg_size_score = sum(size_dict.values()) / len(size_dict)
+                        net_score += avg_size_score * weight
                 score_val = scores[metric_name].get("value", 0)
                 if isinstance(score_val, (int, float)):
                     net_score += score_val * weight
@@ -1055,34 +984,18 @@ def run_scoring(url: str) -> Dict[str, Any]:
         scores["net_score"] = {"value": round(net_score, 2)}
         logger.info('Computed net_score=%s for %s', scores["net_score"], url)
 
-        return scores
+        return_dict = {
+            "scores": scores,
+            "metadata": model.metadata
+        }
+
+        return return_dict
 
     except Exception as e:
         logger.exception('Error during scoring for URL: %s', url)
-        return {"error": str(e), "net_score": {"value": 0.0}}
+        return {"error": e, "net_score": {"value": 0.0}}
 
 if __name__ == '__main__':
     logger.info('Starting ECE461 Team 17 - Package Registry API')
     logger.info('Listening on http://127.0.0.1:8080')
-    # print("=" * 60)
-    # print("  ECE461 Team 17 - Package Registry API")
-    # print("=" * 60)
-    # print("\nAuthentication Endpoints:")
-    # print("  PUT  /authenticate            - Generate JWT token")
-    # print("  POST /users                   - Create user (admin)")
-    # print("  GET  /users                   - List users (admin)")
-    # print("  DELETE /users/<username>      - Delete user")
-    # print("\nHealth Monitoring:")
-    # print("  GET  /health                  - Liveness check")
-    # print("  GET  /health/components       - Component health")
-    # print("\nAudit Endpoints:")
-    # print("  GET  /artifact/<type>/<id>/audit     - Audit trail")
-    # print("  GET  /artifact/<type>/<id>/downloads - Download history")
-    # print("\nPackage Endpoints:")
-    # print("  POST /package                 - Ingest and score")
-    # print("  GET  /package/<id>            - Retrieve package")
-    # print("  GET  /packages/byRegex        - Search packages")
-    # print("  DELETE /reset                 - Reset system (admin)")
-    # print("\nListening on http://127.0.0.1:8080")
-    # print("=" * 60)
     app.run(host='127.0.0.1', port=8080, debug=True)
