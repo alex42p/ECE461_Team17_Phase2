@@ -81,29 +81,18 @@ class DynamoDBService:
         self.endpoint_url = endpoint_url
 
         if not all([self.region_name, self.aws_access_key, self.aws_secret_key]):
-            self.logger.error("AWS credentials or region not properly set in environment variables.")
-            raise ValueError("AWS credentials or region not properly set in environment variables.")
+            self.logger.error("AWS credentials or region not properly set.")
+            raise ValueError("AWS credentials or region not properly set.")
 
-        # for local development, use DynamoDB Local
-        if self.endpoint_url:
-            self.dynamodb = boto3.resource(
-                'dynamodb',
-                region_name=self.region_name,
-                endpoint_url=endpoint_url,
-                aws_access_key_id=self.aws_access_key,
-                aws_secret_access_key=self.aws_secret_key
-            )
-            self.logger.info(f"Connected to DynamoDB Local at {endpoint_url}")
-        else:
-            self.dynamodb = boto3.resource(
-                'dynamodb',
-                region_name=self.region_name,
-                aws_access_key_id=self.aws_access_key,
-                aws_secret_access_key=self.aws_secret_key
-            )
-            self.logger.info(f"Connected to DynamoDB in region {self.region_name}")
-        
-        self.table_prefix = os.environ.get('DYNAMODB_TABLE_PREFIX', 'ECE461-Team17')
+        self.dynamodb = boto3.resource(
+            'dynamodb',
+            region_name=self.region_name,
+            aws_access_key_id=self.aws_access_key,
+            aws_secret_access_key=self.aws_secret_key
+        )
+        self.logger.info(f"Connected to DynamoDB in region {self.region_name}")
+    
+        self.table_prefix = 'ECE461-Team17'
         
         self._initialize_tables()
     
@@ -111,10 +100,7 @@ class DynamoDBService:
         """Initialize DynamoDB table references"""
         try:
             self.packages_table = self.dynamodb.Table(f'{self.table_prefix}-Packages') 
-            self.users_table = self.dynamodb.Table(f'{self.table_prefix}-Users')
-            self.audit_table = self.dynamodb.Table(f'{self.table_prefix}-AuditLog')
-            self.tokens_table = self.dynamodb.Table(f'{self.table_prefix}-Tokens')
-            self.logger.info("DynamoDB tables initialized successfully")
+            self.logger.info(f"Successfully connected to {self.packages_table.table_name} table - Status: {self.packages_table.table_status}")
         except Exception as e:
             self.logger.error(f"Error initializing tables: {e}")
             raise
@@ -128,16 +114,7 @@ class DynamoDBService:
             # packages table
             self._create_packages_table()
             
-            # users table
-            self._create_users_table()
-            
-            # audit log table
-            self._create_audit_table()
-            
-            # token usage table
-            self._create_tokens_table()
-            
-            self.logger.info("All DynamoDB tables created successfully")
+            self.logger.info("All DynamoDB table(s) created successfully")
             
         except Exception as e:
             self.logger.error(f"Error creating tables: {e}")
@@ -186,125 +163,6 @@ class DynamoDBService:
                     },
                 ],
                 BillingMode='PAY_PER_REQUEST',  # on demand pricing
-            )
-            
-            table.wait_until_exists()
-            self.logger.info(f"Created table: {table_name}")
-            
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceInUseException':
-                self.logger.info(f"Table {table_name} already exists")
-            else:
-                raise
-    
-    def _create_users_table(self):
-        """Create Users table for authentication"""
-        table_name = f'{self.table_prefix}-Users'
-        
-        try:
-            table = self.dynamodb.create_table(
-                TableName=table_name,
-                KeySchema=[
-                    {'AttributeName': 'username', 'KeyType': 'HASH'},
-                ],
-                AttributeDefinitions=[
-                    {'AttributeName': 'username', 'AttributeType': 'S'},
-                ],
-                BillingMode='PAY_PER_REQUEST',
-            )
-            
-            table.wait_until_exists()
-            self.logger.info(f"Created table: {table_name}")
-            
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceInUseException':
-                self.logger.info(f"Table {table_name} already exists")
-            else:
-                raise
-    
-    def _create_audit_table(self):
-        """Create Audit Log table"""
-        table_name = f'{self.table_prefix}-AuditLog'
-        
-        try:
-            table = self.dynamodb.create_table(
-                TableName=table_name,
-                KeySchema=[
-                    {'AttributeName': 'id', 'KeyType': 'HASH'},
-                    {'AttributeName': 'timestamp', 'KeyType': 'RANGE'},
-                ],
-                AttributeDefinitions=[
-                    {'AttributeName': 'id', 'AttributeType': 'S'},
-                    {'AttributeName': 'timestamp', 'AttributeType': 'S'},
-                    {'AttributeName': 'artifact_id', 'AttributeType': 'S'},
-                    {'AttributeName': 'username', 'AttributeType': 'S'},
-                ],
-                GlobalSecondaryIndexes=[
-                    {
-                        'IndexName': 'ArtifactIndex',
-                        'KeySchema': [
-                            {'AttributeName': 'artifact_id', 'KeyType': 'HASH'},
-                            {'AttributeName': 'timestamp', 'KeyType': 'RANGE'},
-                        ],
-                        'Projection': {'ProjectionType': 'ALL'},
-                        'ProvisionedThroughput': {
-                            'ReadCapacityUnits': 5,
-                            'WriteCapacityUnits': 5
-                        }
-                    },
-                    {
-                        'IndexName': 'UserIndex',
-                        'KeySchema': [
-                            {'AttributeName': 'username', 'KeyType': 'HASH'},
-                            {'AttributeName': 'timestamp', 'KeyType': 'RANGE'},
-                        ],
-                        'Projection': {'ProjectionType': 'ALL'},
-                        'ProvisionedThroughput': {
-                            'ReadCapacityUnits': 5,
-                            'WriteCapacityUnits': 5
-                        }
-                    },
-                ],
-                BillingMode='PAY_PER_REQUEST',
-            )
-            
-            table.wait_until_exists()
-            self.logger.info(f"Created table: {table_name}")
-            
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceInUseException':
-                self.logger.info(f"Table {table_name} already exists")
-            else:
-                raise
-    
-    def _create_tokens_table(self):
-        """Create Token Usage table"""
-        table_name = f'{self.table_prefix}-Tokens'
-        
-        try:
-            table = self.dynamodb.create_table(
-                TableName=table_name,
-                KeySchema=[
-                    {'AttributeName': 'token_id', 'KeyType': 'HASH'},
-                ],
-                AttributeDefinitions=[
-                    {'AttributeName': 'token_id', 'AttributeType': 'S'},
-                    {'AttributeName': 'username', 'AttributeType': 'S'},
-                ],
-                GlobalSecondaryIndexes=[
-                    {
-                        'IndexName': 'UsernameIndex',
-                        'KeySchema': [
-                            {'AttributeName': 'username', 'KeyType': 'HASH'},
-                        ],
-                        'Projection': {'ProjectionType': 'ALL'},
-                        'ProvisionedThroughput': {
-                            'ReadCapacityUnits': 5,
-                            'WriteCapacityUnits': 5
-                        }
-                    },
-                ],
-                BillingMode='PAY_PER_REQUEST',
             )
             
             table.wait_until_exists()
@@ -507,201 +365,78 @@ class DynamoDBService:
             self.logger.error(f"Error scanning packages: {e}")
             return []
     
-    # USER OPERATIONS
+    # # USER OPERATIONS
     
-    def create_user(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new user"""
-        timestamp = datetime.now(timezone.utc).isoformat()
+    # def create_user(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
+    #     """Create a new user"""
+    #     timestamp = datetime.now(timezone.utc).isoformat()
         
-        item = {
-            'username': user_data['username'],
-            'password_hash': user_data['password_hash'],
-            'role': user_data.get('role', UserRole.SEARCHER.value),
-            'created_at': timestamp,
-            'is_active': True,
-        }
+    #     item = {
+    #         'username': user_data['username'],
+    #         'password_hash': user_data['password_hash'],
+    #         'role': user_data.get('role', UserRole.SEARCHER.value),
+    #         'created_at': timestamp,
+    #         'is_active': True,
+    #     }
         
-        try:
-            self.users_table.put_item(Item=item)
-            self.logger.info(f"Created user: {item['username']}")
-            return item
-        except ClientError as e:
-            self.logger.error(f"Error creating user: {e}")
-            raise
+    #     try:
+    #         self.users_table.put_item(Item=item)
+    #         self.logger.info(f"Created user: {item['username']}")
+    #         return item
+    #     except ClientError as e:
+    #         self.logger.error(f"Error creating user: {e}")
+    #         raise
     
-    def get_user(self, username: str) -> Optional[Dict[str, Any]]:
-        """Get user by username"""
-        try:
-            response = self.users_table.get_item(Key={'username': username})
-            return response.get('Item')
-        except ClientError as e:
-            self.logger.error(f"Error getting user {username}: {e}")
-            return None
+    # def get_user(self, username: str) -> Optional[Dict[str, Any]]:
+    #     """Get user by username"""
+    #     try:
+    #         response = self.users_table.get_item(Key={'username': username})
+    #         return response.get('Item')
+    #     except ClientError as e:
+    #         self.logger.error(f"Error getting user {username}: {e}")
+    #         return None
     
-    def update_user(self, username: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Update user"""
-        update_expr = "SET "
-        expr_values = {}
+    # def update_user(self, username: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    #     """Update user"""
+    #     update_expr = "SET "
+    #     expr_values = {}
         
-        for i, (key, value) in enumerate(updates.items()):
-            if i > 0:
-                update_expr += ", "
-            update_expr += f"{key} = :{key}"
-            expr_values[f":{key}"] = value
+    #     for i, (key, value) in enumerate(updates.items()):
+    #         if i > 0:
+    #             update_expr += ", "
+    #         update_expr += f"{key} = :{key}"
+    #         expr_values[f":{key}"] = value
         
-        try:
-            response = self.users_table.update_item(
-                Key={'username': username},
-                UpdateExpression=update_expr,
-                ExpressionAttributeValues=expr_values,
-                ReturnValues='ALL_NEW'
-            )
-            return response.get('Attributes')
-        except ClientError as e:
-            self.logger.error(f"Error updating user {username}: {e}")
-            return None
+    #     try:
+    #         response = self.users_table.update_item(
+    #             Key={'username': username},
+    #             UpdateExpression=update_expr,
+    #             ExpressionAttributeValues=expr_values,
+    #             ReturnValues='ALL_NEW'
+    #         )
+    #         return response.get('Attributes')
+    #     except ClientError as e:
+    #         self.logger.error(f"Error updating user {username}: {e}")
+    #         return None
     
-    def delete_user(self, username: str) -> bool:
-        """Delete user"""
-        try:
-            self.users_table.delete_item(Key={'username': username})
-            self.logger.info(f"Deleted user: {username}")
-            return True
-        except ClientError as e:
-            self.logger.error(f"Error deleting user {username}: {e}")
-            return False
+    # def delete_user(self, username: str) -> bool:
+    #     """Delete user"""
+    #     try:
+    #         self.users_table.delete_item(Key={'username': username})
+    #         self.logger.info(f"Deleted user: {username}")
+    #         return True
+    #     except ClientError as e:
+    #         self.logger.error(f"Error deleting user {username}: {e}")
+    #         return False
     
-    def list_users(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """List all users"""
-        try:
-            response = self.users_table.scan(Limit=limit)
-            return response.get('Items', [])
-        except ClientError as e:
-            self.logger.error(f"Error listing users: {e}")
-            return []
-    
-    # AUDIT LOG OPERATIONS
-    
-    def log_audit(self, audit_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create audit log entry"""
-        import uuid
-        timestamp = datetime.now(timezone.utc).isoformat()
-        
-        item = {
-            'id': str(uuid.uuid4()),
-            'timestamp': timestamp,
-            'artifact_id': audit_data.get('artifact_id'),
-            'artifact_type': audit_data.get('artifact_type'),
-            'action': audit_data['action'],
-            'username': audit_data.get('username'),
-            'details': audit_data.get('details', {}),
-            'ip_address': audit_data.get('ip_address'),
-        }
-        
-        try:
-            self.audit_table.put_item(Item=item)
-            return item
-        except ClientError as e:
-            self.logger.error(f"Error logging audit: {e}")
-            raise
-    
-    def get_artifact_audit_trail(self, artifact_id: str, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get audit trail for an artifact"""
-        try:
-            response = self.audit_table.query(
-                IndexName='ArtifactIndex',
-                KeyConditionExpression='artifact_id = :artifact_id',
-                ExpressionAttributeValues={':artifact_id': artifact_id},
-                Limit=limit,
-                ScanIndexForward=False  # Most recent first
-            )
-            return response.get('Items', [])
-        except ClientError as e:
-            self.logger.error(f"Error getting audit trail: {e}")
-            return []
-    
-    def get_user_audit_trail(self, username: str, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get audit trail for a user"""
-        try:
-            response = self.audit_table.query(
-                IndexName='UserIndex',
-                KeyConditionExpression='username = :username',
-                ExpressionAttributeValues={':username': username},
-                Limit=limit,
-                ScanIndexForward=False
-            )
-            return response.get('Items', [])
-        except ClientError as e:
-            self.logger.error(f"Error getting user audit trail: {e}")
-            return []
-    
-    # TOKEN OPERATIONS
-    
-    def create_token(self, token_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create token usage record"""
-        timestamp = datetime.now(timezone.utc).isoformat()
-        
-        item = {
-            'token_id': token_data['token_id'],
-            'username': token_data['username'],
-            'call_count': 0,
-            'created_at': timestamp,
-            'last_used_at': timestamp,
-        }
-        
-        try:
-            self.tokens_table.put_item(Item=item)
-            return item
-        except ClientError as e:
-            self.logger.error(f"Error creating token: {e}")
-            raise
-    
-    def get_token(self, token_id: str) -> Optional[Dict[str, Any]]:
-        """Get token by ID"""
-        try:
-            response = self.tokens_table.get_item(Key={'token_id': token_id})
-            return response.get('Item')
-        except ClientError as e:
-            self.logger.error(f"Error getting token: {e}")
-            return None
-    
-    def increment_token_usage(self, token_id: str) -> bool:
-        """Increment token usage count"""
-        try:
-            self.tokens_table.update_item(
-                Key={'token_id': token_id},
-                UpdateExpression='SET call_count = call_count + :inc, last_used_at = :timestamp',
-                ExpressionAttributeValues={
-                    ':inc': 1,
-                    ':timestamp': datetime.now(timezone.utc).isoformat()
-                }
-            )
-            return True
-        except ClientError as e:
-            self.logger.error(f"Error incrementing token usage: {e}")
-            return False
-    
-    def delete_token(self, token_id: str) -> bool:
-        """Delete token"""
-        try:
-            self.tokens_table.delete_item(Key={'token_id': token_id})
-            return True
-        except ClientError as e:
-            self.logger.error(f"Error deleting token: {e}")
-            return False
-    
-    def get_user_tokens(self, username: str) -> List[Dict[str, Any]]:
-        """Get all tokens for a user"""
-        try:
-            response = self.tokens_table.query(
-                IndexName='UsernameIndex',
-                KeyConditionExpression='username = :username',
-                ExpressionAttributeValues={':username': username}
-            )
-            return response.get('Items', [])
-        except ClientError as e:
-            self.logger.error(f"Error getting user tokens: {e}")
-            return []
+    # def list_users(self, limit: int = 100) -> List[Dict[str, Any]]:
+    #     """List all users"""
+    #     try:
+    #         response = self.users_table.scan(Limit=limit)
+    #         return response.get('Items', [])
+    #     except ClientError as e:
+    #         self.logger.error(f"Error listing users: {e}")
+    #         return []
     
     # SYSTEM OPERATIONS
     
@@ -711,14 +446,14 @@ class DynamoDBService:
             # clear all packages
             self._clear_table(self.packages_table, 'id')
             
-            # clear all users
-            self._clear_table(self.users_table, 'username')
+            # # clear all users
+            # self._clear_table(self.users_table, 'username')
             
-            # clear all audit logs
-            self._clear_table(self.audit_table, 'id', 'timestamp')
+            # # clear all audit logs
+            # self._clear_table(self.audit_table, 'id', 'timestamp')
             
-            # clear all tokens
-            self._clear_table(self.tokens_table, 'token_id')
+            # # clear all tokens
+            # self._clear_table(self.tokens_table, 'token_id')
             
             self.logger.info("Database reset completed")
             
@@ -780,46 +515,46 @@ class DynamoDBService:
         """Initialize database - creates tables and default admin user"""
         # db_service = get_dynamodb_service()
         
-        try:
+        # try:
             # create tables if they don't exist
-            self.create_tables()
+            # self.create_tables() # THEY ALREADY EXIST
             
             # create the autograder's expected default admin user
-            import bcrypt
-            autograder_admin_username = "ece30861defaultadminuser"
-            autograder_admin_password = "correcthorsebatterystaple123(!__+@**(A'\"`;DROP TABLE artifacts;"
+            # import bcrypt
+            # autograder_admin_username = "ece30861defaultadminuser"
+            # autograder_admin_password = "correcthorsebatterystaple123(!__+@**(A'\"`;DROP TABLE artifacts;"
             
-            existing_admin = self.get_user(autograder_admin_username)
+            # existing_admin = self.get_user(autograder_admin_username)
             
-            if not existing_admin:
-                password_hash = bcrypt.hashpw(autograder_admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            # if not existing_admin:
+            #     password_hash = bcrypt.hashpw(autograder_admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                 
-                admin_user = self.create_user({
-                    'username': autograder_admin_username,
-                    'password_hash': password_hash,
-                    'role': UserRole.ADMIN.value,
-                    'is_active': True,
-                    'created_at': datetime.now(timezone.utc).isoformat()
-                })
+            #     admin_user = self.create_user({
+            #         'username': autograder_admin_username,
+            #         'password_hash': password_hash,
+            #         'role': UserRole.ADMIN.value,
+            #         'is_active': True,
+            #         'created_at': datetime.now(timezone.utc).isoformat()
+            #     })
                 
-                self.logger.info(f"✓ Created default admin user: {admin_user['username']}")
-                print(f"✓ Created default admin user in DynamoDB: {admin_user['username']}")
-            else:
-                # Verify password is correct
-                stored_hash = existing_admin.get('password_hash', '')
-                if bcrypt.checkpw(autograder_admin_password.encode('utf-8'), stored_hash.encode('utf-8')):
-                    self.logger.info(f"✓ Default admin user exists with correct password: {autograder_admin_username}")
-                    print(f"✓ Default admin user exists in DynamoDB: {autograder_admin_username}")
-                else:
-                    # Update password hash if incorrect
-                    password_hash = bcrypt.hashpw(autograder_admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                    self.update_user(autograder_admin_username, {'password_hash': password_hash})
-                    self.logger.warning(f"⚠ Updated default admin password: {autograder_admin_username}")
-                    print(f"⚠ Updated default admin password in DynamoDB: {autograder_admin_username}")
-        except Exception as e:
-            self.logger.error(f"✗ Error initializing DynamoDB: {e}", exc_info=True)
-            print(f"✗ Error initializing DynamoDB: {e}")
-            raise  # Re-raise to prevent app from starting if init fails
+            #     self.logger.info(f"✓ Created default admin user: {admin_user['username']}")
+            #     print(f"✓ Created default admin user in DynamoDB: {admin_user['username']}")
+            # else:
+            #     # Verify password is correct
+            #     stored_hash = existing_admin.get('password_hash', '')
+            #     if bcrypt.checkpw(autograder_admin_password.encode('utf-8'), stored_hash.encode('utf-8')):
+            #         self.logger.info(f"✓ Default admin user exists with correct password: {autograder_admin_username}")
+            #         print(f"✓ Default admin user exists in DynamoDB: {autograder_admin_username}")
+            #     else:
+            #         # Update password hash if incorrect
+            #         password_hash = bcrypt.hashpw(autograder_admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            #         self.update_user(autograder_admin_username, {'password_hash': password_hash})
+            #         self.logger.warning(f"⚠ Updated default admin password: {autograder_admin_username}")
+            #         print(f"⚠ Updated default admin password in DynamoDB: {autograder_admin_username}")
+        # except Exception as e:
+        #     self.logger.error(f"✗ Error initializing DynamoDB: {e}", exc_info=True)
+        #     print(f"✗ Error initializing DynamoDB: {e}")
+        #     raise  # Re-raise to prevent app from starting if init fails
 
 # if __name__ == '__main__':
 #     # for testing
