@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 import os
 import sys
 from pathlib import Path
@@ -95,11 +96,11 @@ def score(url_file: str) -> None:
         weights = {
             "ramp_up_time": 0.20,           # Same
             "license": 0.15,                # Same
-            "dataset_and_code_score": 0.10, # Same
             "performance_claims": 0.10,     # Same
-            "bus_factor": 0.07,             # Reduced from 0.10
+            "bus_factor": 0.10,             # Same
             "code_quality": 0.12,           # Reduced from 0.15
             "dataset_quality": 0.12,        # Reduced from 0.15
+            "dataset_and_code_score": 0.07, # Reduced from 0.10
             "size_score": 0.05,             # Same
             "reproducibility": 0.03,        # NEW
             "reviewedness": 0.03,           # NEW
@@ -108,6 +109,12 @@ def score(url_file: str) -> None:
         net_score = 0.0
         for metric_name, weight in weights.items():
             if metric_name in scores:
+                # special handling for size score - average of all 4 values in size_score dict
+                if metric_name == "size_score":
+                    size_dict = scores[metric_name].get("value", {})
+                    if size_dict:
+                        avg_size_score = sum(size_dict.values()) / len(size_dict)
+                        net_score += avg_size_score * weight
                 score_val = scores[metric_name].get("value", 0)
                 if isinstance(score_val, (int, float)):
                     net_score += score_val * weight

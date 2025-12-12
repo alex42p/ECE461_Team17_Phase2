@@ -172,22 +172,22 @@ function displaySearchResults(packages) {
 async function uploadPackage(event) {
     event.preventDefault();
 
-    const name = document.getElementById('package-name').value;
-    const version = document.getElementById('package-version').value;
+    // const name = document.getElementById('package-name').value;
+    // const version = document.getElementById('package-version').value;
     const url = document.getElementById('package-url').value;
-    const isSensitive = document.getElementById('is-sensitive').checked;
+    // const isSensitive = document.getElementById('is-sensitive').checked;
 
     const resultsContainer = document.getElementById('upload-results');
     resultsContainer.innerHTML = '<div class="spinner-container"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Uploading and scoring...</span></div></div>';
 
     try {
-        const response = await apiRequest('/package', {
+        const response = await apiRequest('/artifacts/model', {
             method: 'POST',
             body: JSON.stringify({
-                name: name,
-                version: version,
+                // name: name,
+                // version: version,
                 url: url,
-                is_sensitive: isSensitive
+                // is_sensitive: isSensitive
             })
         });
 
