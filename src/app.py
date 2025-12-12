@@ -17,60 +17,6 @@ from decimal import Decimal
 from dotenv import load_dotenv
 load_dotenv()
 
-# Load environment variables
-AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID")
-AWS_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = os.environ.get("AWS_DEFAULT_REGION")
-DYNAMODB_ENDPOINT = os.environ.get("DYNAMODB_ENDPOINT")
-FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", 'dev-secret-key-change-in-production')
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
-
-if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT, FLASK_SECRET_KEY, GITHUB_TOKEN, S3_BUCKET_NAME]):
-    # Load from AWS Secrets Manager if .env not available
-    import boto3
-    from botocore.exceptions import ClientError
-    secret_name = "ece461-secrets"
-    region_name = "us-east-2"
-
-    # Create a Secrets Manager client
-    # session = boto3.session.Session()
-    client = boto3.client(
-        'secretsmanager',
-        region_name=region_name
-    )
-
-    try:
-        get_secret_value_response = client.get_secret_value(
-            SecretId=secret_name
-        )
-        secret_dict = json.loads(get_secret_value_response["SecretString"])
-        AWS_ACCESS_KEY = secret_dict.get("AWS_ACCESS_KEY_ID", AWS_ACCESS_KEY)
-        AWS_SECRET_KEY = secret_dict.get("AWS_SECRET_ACCESS_KEY", AWS_SECRET_KEY)
-        AWS_REGION = secret_dict.get("AWS_DEFAULT_REGION", AWS_REGION or "us-east-2")
-        DYNAMODB_ENDPOINT = secret_dict.get("DYNAMODB_ENDPOINT", DYNAMODB_ENDPOINT)
-        FLASK_SECRET_KEY = secret_dict.get("FLASK_SECRET_KEY", FLASK_SECRET_KEY)
-        GITHUB_TOKEN = secret_dict.get("GITHUB_TOKEN", GITHUB_TOKEN)
-        S3_BUCKET_NAME = secret_dict.get("S3_BUCKET_NAME", S3_BUCKET_NAME)
-        print("Loaded secrets from AWS Secrets Manager")
-    except Exception as e:
-        # Secrets Manager not available - use environment variables or defaults
-        print(f"Could not load from Secrets Manager ({e}), using environment variables")
-        # Keep the values already loaded from environment (lines 20-26)
-        # Set minimal defaults for missing values
-        AWS_ACCESS_KEY = AWS_ACCESS_KEY or ""
-        AWS_SECRET_KEY = AWS_SECRET_KEY or ""
-        AWS_REGION = AWS_REGION or "us-east-2"
-        DYNAMODB_ENDPOINT = DYNAMODB_ENDPOINT or "http://localhost:8000"
-        S3_BUCKET_NAME = S3_BUCKET_NAME or "team17-model-storage"
-
-# Import storage
-from storage import S3Storage
-
-# Import database and services
-from database import get_db, init_db, UserRole, AuditAction, db_manager, User
-from dynamodb_service import DynamoDBService
-
 # Ensure logs directory exists at project root
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 LOGS_DIR = os.path.join(ROOT_DIR, 'logs')
@@ -89,8 +35,55 @@ if not logger.handlers:
 
 logger.debug('Logger initialized, writing to %s', LOG_FILE)
 
+# Load environment variables
+AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = os.environ.get("AWS_DEFAULT_REGION")
+DYNAMODB_ENDPOINT = os.environ.get("DYNAMODB_ENDPOINT")
+FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", 'dev-secret-key-change-in-production')
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
+
+if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT, FLASK_SECRET_KEY, GITHUB_TOKEN, S3_BUCKET_NAME]):
+    # Load from AWS Secrets Manager if .env not available
+    logger.info("Loading secrets from AWS Secrets Manager")
+    import boto3
+    from botocore.exceptions import ClientError
+    secret_name = "ece461-secrets" # not actualy secure but whatever
+    AWS_REGION = "us-east-2"
+
+    # Create a Secrets Manager client
+    # session = boto3.session.Session()
+    client = boto3.client(
+        'secretsmanager',
+        region_name=AWS_REGION
+    )
+
+    try:
+        get_secret_value_response = client.get_secret_value(
+            SecretId=secret_name
+        )
+        secret_dict = json.loads(get_secret_value_response["SecretString"])
+        AWS_ACCESS_KEY = secret_dict.get("AWS_ACCESS_KEY_ID")
+        AWS_SECRET_KEY = secret_dict.get("AWS_SECRET_ACCESS_KEY")
+        # AWS_REGION = secret_dict.get("AWS_DEFAULT_REGION")
+        DYNAMODB_ENDPOINT = secret_dict.get("DYNAMODB_ENDPOINT")
+        FLASK_SECRET_KEY = secret_dict.get("FLASK_SECRET_KEY")
+        GITHUB_TOKEN = secret_dict.get("GITHUB_TOKEN")
+        S3_BUCKET_NAME = secret_dict.get("S3_BUCKET_NAME")
+        logger.info("Loaded secrets from AWS Secrets Manager")
+    except ClientError as e:
+        # secrets manager error - unable to use global variables
+        logger.error(f"Could not load from Secrets Manager ({e}), using environment variables")
+
+# Import storage
+from storage import S3Storage
+
+# Import database and services
+from database import get_db, init_db, UserRole, AuditAction, db_manager, User
+from dynamodb_service import DynamoDBService
+
 try:
-    # from cognito_auth import CognitoAuthService
     from cognito_auth import CognitoAuthService
     cognito_auth = CognitoAuthService(AWS_ACCESS_KEY, AWS_SECRET_KEY)
     from cognito_middleware import (
@@ -299,72 +292,26 @@ def authenticate():
 
         if not username or not password:
             logger.warning('Authenticate missing username or password (username provided: %s)', bool(username))
-            return jsonify({"error": "Username and password required"}), 400
+            return jsonify({"error": "There is missing field(s) in the AuthenticationRequest or it is formed improperly."}), 400
 
-        logger.debug('Authenticating user: %s (cognito=%s)', username, USE_COGNITO)
+        logger.debug('Authenticating user: %s', username)
 
-        # Try Cognito if enabled, with fallback to legacy auth
-        logger.debug('Using Cognito: %s', USE_COGNITO)
-        cognito_failed = False
+        if not USE_COGNITO:
+            logger.error('Cognito authentication is not properly configured')
+            return jsonify({"error": "Authentication service not available"}), 503
         
-        if USE_COGNITO:
-            try:
-                result = cognito_auth.authenticate(username, password)
-                logger.info('User %s authenticated via Cognito', username)
-                # OpenAPI spec expects JSON string: "bearer TOKEN"
-                token = f"bearer {result['access_token']}"
-                return jsonify(token), 200
-            except Exception as cognito_error:
-                logger.warning('Cognito authentication failed for %s: %s', username, cognito_error)
-                logger.info('Falling back to legacy authentication for user: %s', username)
-                cognito_failed = True
-        
-        # Use legacy authentication if Cognito is disabled or failed
-        if not USE_COGNITO or cognito_failed:
-            logger.info('Using legacy database authentication for user: %s (cognito_failed=%s)', username, cognito_failed)
-            try:
-                # Check if user exists in database
-                session = get_db()
-                user = session.query(User).filter_by(username=username).first()
-                
-                if not user:
-                    logger.warning('Legacy auth: User %s not found in database', username)
-                    # List all users for debugging
-                    all_users = session.query(User.username).all()
-                    logger.debug('Available users in database: %s', [u[0] for u in all_users])
-                    return jsonify({"error": "Invalid credentials"}), 401
-                
-                if not user.is_active:
-                    logger.warning('Legacy auth: User %s exists but is inactive', username)
-                    return jsonify({"error": "Invalid credentials"}), 401
-                
-                # Verify password with bcrypt
-                import bcrypt
-                logger.debug('Verifying password for user %s', username)
-                if not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
-                    logger.warning('Legacy auth: Invalid password for user %s', username)
-                    return jsonify({"error": "Invalid credentials"}), 401
-                
-                # For legacy auth, return a simple token (username-based)
-                # This is for autograder compatibility
-                import base64
-                simple_token = base64.b64encode(f"{username}:{user.role.value}".encode()).decode()
-                
-                logger.info('✓ Legacy auth successful for user %s with role %s', username, user.role)
-                
-                # OpenAPI spec expects JSON string: "bearer TOKEN"
-                token = f"bearer {simple_token}"
-                return jsonify(token), 200
-                
-            except Exception as e:
-                logger.exception('✗ Error in legacy authentication for user %s: %s', username, e)
-                return jsonify({"error": "Authentication failed"}), 500
-            finally:
-                if 'session' in locals():
-                    session.close()
+        try:
+            result = cognito_auth.authenticate(username, password)
+            logger.info('User \"%s\" authenticated via Cognito', username)
+            # OpenAPI spec expects JSON string: "bearer TOKEN"
+            token = f"bearer {result['access_token']}"
+            return jsonify({"value": token}), 200
+        except Exception as cognito_error:
+            logger.warning('Cognito authentication failed for %s: %s', username, cognito_error)
+            return jsonify({"error": "The user or password is invalid."}), 401
 
     except Exception as e:
-        logger.exception('Error in authenticate endpoint')
+        logger.exception('Error in authenticate endpoint', str(e))
         return jsonify({"error": str(e)}), 500
 
 @app.route('/users', methods=['POST'])
@@ -577,7 +524,6 @@ def list_users():
 # ============================================================================
 
 @app.route('/health', methods=['GET'])
-#@require_admin()
 def health_check():
     """
     Simple liveness check (admin only).
@@ -602,7 +548,6 @@ def get_tracks():
     }), 200
 
 @app.route('/health/components', methods=['GET'])
-#@require_admin()
 def health_components():
     """
     Detailed component health check (admin only).
