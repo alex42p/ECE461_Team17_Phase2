@@ -128,16 +128,7 @@ class DynamoDBService:
             # packages table
             self._create_packages_table()
             
-            # users table
-            self._create_users_table()
-            
-            # audit log table
-            self._create_audit_table()
-            
-            # token usage table
-            self._create_tokens_table()
-            
-            self.logger.info("All DynamoDB tables created successfully")
+            self.logger.info("All DynamoDB table(s) created successfully")
             
         except Exception as e:
             self.logger.error(f"Error creating tables: {e}")
@@ -186,125 +177,6 @@ class DynamoDBService:
                     },
                 ],
                 BillingMode='PAY_PER_REQUEST',  # on demand pricing
-            )
-            
-            table.wait_until_exists()
-            self.logger.info(f"Created table: {table_name}")
-            
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceInUseException':
-                self.logger.info(f"Table {table_name} already exists")
-            else:
-                raise
-    
-    def _create_users_table(self):
-        """Create Users table for authentication"""
-        table_name = f'{self.table_prefix}-Users'
-        
-        try:
-            table = self.dynamodb.create_table(
-                TableName=table_name,
-                KeySchema=[
-                    {'AttributeName': 'username', 'KeyType': 'HASH'},
-                ],
-                AttributeDefinitions=[
-                    {'AttributeName': 'username', 'AttributeType': 'S'},
-                ],
-                BillingMode='PAY_PER_REQUEST',
-            )
-            
-            table.wait_until_exists()
-            self.logger.info(f"Created table: {table_name}")
-            
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceInUseException':
-                self.logger.info(f"Table {table_name} already exists")
-            else:
-                raise
-    
-    def _create_audit_table(self):
-        """Create Audit Log table"""
-        table_name = f'{self.table_prefix}-AuditLog'
-        
-        try:
-            table = self.dynamodb.create_table(
-                TableName=table_name,
-                KeySchema=[
-                    {'AttributeName': 'id', 'KeyType': 'HASH'},
-                    {'AttributeName': 'timestamp', 'KeyType': 'RANGE'},
-                ],
-                AttributeDefinitions=[
-                    {'AttributeName': 'id', 'AttributeType': 'S'},
-                    {'AttributeName': 'timestamp', 'AttributeType': 'S'},
-                    {'AttributeName': 'artifact_id', 'AttributeType': 'S'},
-                    {'AttributeName': 'username', 'AttributeType': 'S'},
-                ],
-                GlobalSecondaryIndexes=[
-                    {
-                        'IndexName': 'ArtifactIndex',
-                        'KeySchema': [
-                            {'AttributeName': 'artifact_id', 'KeyType': 'HASH'},
-                            {'AttributeName': 'timestamp', 'KeyType': 'RANGE'},
-                        ],
-                        'Projection': {'ProjectionType': 'ALL'},
-                        'ProvisionedThroughput': {
-                            'ReadCapacityUnits': 5,
-                            'WriteCapacityUnits': 5
-                        }
-                    },
-                    {
-                        'IndexName': 'UserIndex',
-                        'KeySchema': [
-                            {'AttributeName': 'username', 'KeyType': 'HASH'},
-                            {'AttributeName': 'timestamp', 'KeyType': 'RANGE'},
-                        ],
-                        'Projection': {'ProjectionType': 'ALL'},
-                        'ProvisionedThroughput': {
-                            'ReadCapacityUnits': 5,
-                            'WriteCapacityUnits': 5
-                        }
-                    },
-                ],
-                BillingMode='PAY_PER_REQUEST',
-            )
-            
-            table.wait_until_exists()
-            self.logger.info(f"Created table: {table_name}")
-            
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceInUseException':
-                self.logger.info(f"Table {table_name} already exists")
-            else:
-                raise
-    
-    def _create_tokens_table(self):
-        """Create Token Usage table"""
-        table_name = f'{self.table_prefix}-Tokens'
-        
-        try:
-            table = self.dynamodb.create_table(
-                TableName=table_name,
-                KeySchema=[
-                    {'AttributeName': 'token_id', 'KeyType': 'HASH'},
-                ],
-                AttributeDefinitions=[
-                    {'AttributeName': 'token_id', 'AttributeType': 'S'},
-                    {'AttributeName': 'username', 'AttributeType': 'S'},
-                ],
-                GlobalSecondaryIndexes=[
-                    {
-                        'IndexName': 'UsernameIndex',
-                        'KeySchema': [
-                            {'AttributeName': 'username', 'KeyType': 'HASH'},
-                        ],
-                        'Projection': {'ProjectionType': 'ALL'},
-                        'ProvisionedThroughput': {
-                            'ReadCapacityUnits': 5,
-                            'WriteCapacityUnits': 5
-                        }
-                    },
-                ],
-                BillingMode='PAY_PER_REQUEST',
             )
             
             table.wait_until_exists()

@@ -40,10 +40,9 @@ AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION")
 DYNAMODB_ENDPOINT = os.environ.get("DYNAMODB_ENDPOINT")
-FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", 'dev-secret-key-change-in-production')
+FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
-
 if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT, FLASK_SECRET_KEY, GITHUB_TOKEN, S3_BUCKET_NAME]):
     # Load from AWS Secrets Manager if .env not available
     logger.info("Loading secrets from AWS Secrets Manager")
