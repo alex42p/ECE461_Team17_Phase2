@@ -2,7 +2,7 @@
 DynamoDB Service for Package Registry
 """
 # mypy: ignore-errors
-# pyright: reportAttributeAccessIssue=false
+# pyright: reportAttributeAccessIssue=false, reportArgumentType=false
 
 import boto3
 import os
@@ -44,7 +44,12 @@ class DynamoDBService:
     - TokenUsage: JWT token tracking
     """
 
-    def __init__(self, aws_access_key: Optional[str], aws_secret_key: Optional[str], region_name: Optional[str] = None, endpoint_url: Optional[str] = None):
+    def __init__(
+            self,
+            aws_access_key: Optional[str],
+            aws_secret_key: Optional[str],
+            region_name: Optional[str] = None,
+            endpoint_url: Optional[str] = None):
         """
         Initialize DynamoDB service.
         
@@ -99,12 +104,6 @@ class DynamoDBService:
             self.logger.info(f"Connected to DynamoDB in region {self.region_name}")
         
         self.table_prefix = os.environ.get('DYNAMODB_TABLE_PREFIX', 'ECE461-Team17')
-        
-        # initialize tables
-        self.packages_table = None
-        self.users_table = None
-        self.audit_table = None
-        self.tokens_table = None
         
         self._initialize_tables()
     
@@ -319,7 +318,7 @@ class DynamoDBService:
     
     # PACKAGE/ARTIFACT OPERATIONS
     
-    def create_package(self, package_data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_package(self, package_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Create a new package/artifact.
         
@@ -757,7 +756,7 @@ class DynamoDBService:
     
     # UTILITY METHODS
     
-    def _convert_floats_to_decimal(self, obj):
+    def _convert_floats_to_decimal(self, obj: Any) -> Any:
         """Convert floats to Decimal for DynamoDB"""
         if isinstance(obj, float):
             return Decimal(str(obj))
@@ -767,7 +766,7 @@ class DynamoDBService:
             return [self._convert_floats_to_decimal(item) for item in obj]
         return obj
     
-    def _convert_decimals_to_float(self, obj):
+    def _convert_decimals_to_float(self, obj: Any) -> Any:
         """Convert Decimals back to float for JSON serialization"""
         if isinstance(obj, Decimal):
             return float(obj)
@@ -777,67 +776,54 @@ class DynamoDBService:
             return [self._convert_decimals_to_float(item) for item in obj]
         return obj
 
-
-# global instance
-_db_service = None
-
-
-def get_dynamodb_service() -> DynamoDBService:
-    """Get or create global DynamoDB service instance"""
-    global _db_service
-    if _db_service is None:
-        _db_service = DynamoDBService()
-    return _db_service
-
-
-def init_db():
-    """Initialize database - creates tables and default admin user"""
-    db_service = get_dynamodb_service()
-    
-    try:
-        # create tables if they don't exist
-        db_service.create_tables()
+    def init_db(self):
+        """Initialize database - creates tables and default admin user"""
+        # db_service = get_dynamodb_service()
         
-        # create the autograder's expected default admin user
-        import bcrypt
-        autograder_admin_username = "ece30861defaultadminuser"
-        autograder_admin_password = "correcthorsebatterystaple123(!__+@**(A'\"`;DROP TABLE artifacts;"
-        
-        existing_admin = db_service.get_user(autograder_admin_username)
-        
-        if not existing_admin:
-            password_hash = bcrypt.hashpw(autograder_admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        try:
+            # create tables if they don't exist
+            self.create_tables()
             
-            admin_user = db_service.create_user({
-                'username': autograder_admin_username,
-                'password_hash': password_hash,
-                'role': UserRole.ADMIN.value,
-                'is_active': True,
-                'created_at': datetime.now(timezone.utc).isoformat()
-            })
+            # create the autograder's expected default admin user
+            import bcrypt
+            autograder_admin_username = "ece30861defaultadminuser"
+            autograder_admin_password = "correcthorsebatterystaple123(!__+@**(A'\"`;DROP TABLE artifacts;"
             
-            db_service.logger.info(f"✓ Created default admin user: {admin_user['username']}")
-            print(f"✓ Created default admin user in DynamoDB: {admin_user['username']}")
-        else:
-            # Verify password is correct
-            stored_hash = existing_admin.get('password_hash', '')
-            if bcrypt.checkpw(autograder_admin_password.encode('utf-8'), stored_hash.encode('utf-8')):
-                db_service.logger.info(f"✓ Default admin user exists with correct password: {autograder_admin_username}")
-                print(f"✓ Default admin user exists in DynamoDB: {autograder_admin_username}")
-            else:
-                # Update password hash if incorrect
+            existing_admin = self.get_user(autograder_admin_username)
+            
+            if not existing_admin:
                 password_hash = bcrypt.hashpw(autograder_admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                db_service.update_user(autograder_admin_username, {'password_hash': password_hash})
-                db_service.logger.warning(f"⚠ Updated default admin password: {autograder_admin_username}")
-                print(f"⚠ Updated default admin password in DynamoDB: {autograder_admin_username}")
-    except Exception as e:
-        db_service.logger.error(f"✗ Error initializing DynamoDB: {e}", exc_info=True)
-        print(f"✗ Error initializing DynamoDB: {e}")
-        raise  # Re-raise to prevent app from starting if init fails
+                
+                admin_user = self.create_user({
+                    'username': autograder_admin_username,
+                    'password_hash': password_hash,
+                    'role': UserRole.ADMIN.value,
+                    'is_active': True,
+                    'created_at': datetime.now(timezone.utc).isoformat()
+                })
+                
+                self.logger.info(f"✓ Created default admin user: {admin_user['username']}")
+                print(f"✓ Created default admin user in DynamoDB: {admin_user['username']}")
+            else:
+                # Verify password is correct
+                stored_hash = existing_admin.get('password_hash', '')
+                if bcrypt.checkpw(autograder_admin_password.encode('utf-8'), stored_hash.encode('utf-8')):
+                    self.logger.info(f"✓ Default admin user exists with correct password: {autograder_admin_username}")
+                    print(f"✓ Default admin user exists in DynamoDB: {autograder_admin_username}")
+                else:
+                    # Update password hash if incorrect
+                    password_hash = bcrypt.hashpw(autograder_admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                    self.update_user(autograder_admin_username, {'password_hash': password_hash})
+                    self.logger.warning(f"⚠ Updated default admin password: {autograder_admin_username}")
+                    print(f"⚠ Updated default admin password in DynamoDB: {autograder_admin_username}")
+        except Exception as e:
+            self.logger.error(f"✗ Error initializing DynamoDB: {e}", exc_info=True)
+            print(f"✗ Error initializing DynamoDB: {e}")
+            raise  # Re-raise to prevent app from starting if init fails
 
-if __name__ == '__main__':
-    # for testing
-    logging.basicConfig(level=logging.INFO)
-    print("Initializing DynamoDB...")
-    init_db()
-    print("DynamoDB initialized successfully!")
+# if __name__ == '__main__':
+#     # for testing
+#     logging.basicConfig(level=logging.INFO)
+#     print("Initializing DynamoDB...")
+#     init_db()
+#     print("DynamoDB initialized successfully!")

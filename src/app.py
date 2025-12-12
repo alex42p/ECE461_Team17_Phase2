@@ -17,60 +17,6 @@ from decimal import Decimal
 from dotenv import load_dotenv
 load_dotenv()
 
-# Load environment variables
-AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID")
-AWS_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = os.environ.get("AWS_DEFAULT_REGION")
-DYNAMODB_ENDPOINT = os.environ.get("DYNAMODB_ENDPOINT")
-FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", 'dev-secret-key-change-in-production')
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
-
-if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT, FLASK_SECRET_KEY, GITHUB_TOKEN, S3_BUCKET_NAME]):
-    # Load from AWS Secrets Manager if .env not available
-    import boto3
-    from botocore.exceptions import ClientError
-    secret_name = "ece461-secrets"
-    region_name = "us-east-2"
-
-    # Create a Secrets Manager client
-    # session = boto3.session.Session()
-    client = boto3.client(
-        'secretsmanager',
-        region_name=region_name
-    )
-
-    try:
-        get_secret_value_response = client.get_secret_value(
-            SecretId=secret_name
-        )
-        secret_dict = json.loads(get_secret_value_response["SecretString"])
-        AWS_ACCESS_KEY = secret_dict.get("AWS_ACCESS_KEY_ID", AWS_ACCESS_KEY)
-        AWS_SECRET_KEY = secret_dict.get("AWS_SECRET_ACCESS_KEY", AWS_SECRET_KEY)
-        AWS_REGION = secret_dict.get("AWS_DEFAULT_REGION", AWS_REGION or "us-east-2")
-        DYNAMODB_ENDPOINT = secret_dict.get("DYNAMODB_ENDPOINT", DYNAMODB_ENDPOINT)
-        FLASK_SECRET_KEY = secret_dict.get("FLASK_SECRET_KEY", FLASK_SECRET_KEY)
-        GITHUB_TOKEN = secret_dict.get("GITHUB_TOKEN", GITHUB_TOKEN)
-        S3_BUCKET_NAME = secret_dict.get("S3_BUCKET_NAME", S3_BUCKET_NAME)
-        print("Loaded secrets from AWS Secrets Manager")
-    except Exception as e:
-        # Secrets Manager not available - use environment variables or defaults
-        print(f"Could not load from Secrets Manager ({e}), using environment variables")
-        # Keep the values already loaded from environment (lines 20-26)
-        # Set minimal defaults for missing values
-        AWS_ACCESS_KEY = AWS_ACCESS_KEY or ""
-        AWS_SECRET_KEY = AWS_SECRET_KEY or ""
-        AWS_REGION = AWS_REGION or "us-east-2"
-        DYNAMODB_ENDPOINT = DYNAMODB_ENDPOINT or "http://localhost:8000"
-        S3_BUCKET_NAME = S3_BUCKET_NAME or "team17-model-storage"
-
-# Import storage
-from storage import S3Storage
-
-# Import database and services
-from database import get_db, init_db, UserRole, AuditAction, db_manager, User
-from dynamodb_service import DynamoDBService
-
 # Ensure logs directory exists at project root
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 LOGS_DIR = os.path.join(ROOT_DIR, 'logs')
@@ -89,19 +35,69 @@ if not logger.handlers:
 
 logger.debug('Logger initialized, writing to %s', LOG_FILE)
 
-try:
-    from cognito_auth import CognitoAuthService
-    cognito_auth = CognitoAuthService(AWS_ACCESS_KEY, AWS_SECRET_KEY)
-    from cognito_middleware import (
-        require_auth, require_admin, require_uploader, require_downloader,
-        optional_auth, get_current_user, rate_limit
+# Load environment variables
+AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = os.environ.get("AWS_DEFAULT_REGION")
+DYNAMODB_ENDPOINT = os.environ.get("DYNAMODB_ENDPOINT")
+FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", 'dev-secret-key-change-in-production')
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
+
+if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, DYNAMODB_ENDPOINT, FLASK_SECRET_KEY, GITHUB_TOKEN, S3_BUCKET_NAME]):
+    # Load from AWS Secrets Manager if .env not available
+    logger.info("Loading secrets from AWS Secrets Manager")
+    import boto3
+    from botocore.exceptions import ClientError
+    secret_name = "ece461-secrets" # not actualy secure but whatever
+    AWS_REGION = "us-east-2"
+
+    # Create a Secrets Manager client
+    # session = boto3.session.Session()
+    client = boto3.client(
+        'secretsmanager',
+        region_name=AWS_REGION
     )
-    USE_COGNITO = cognito_auth.enabled
-    logger.debug(f"Cognito authentication: {'ENABLED' if USE_COGNITO else 'DISABLED'}")
-except Exception as e:
-    logger.error(f"Cognito initialization failed: {e}")
-    logger.warning("Authentication will not be available")
-    USE_COGNITO = False
+
+    try:
+        get_secret_value_response = client.get_secret_value(
+            SecretId=secret_name
+        )
+        secret_dict = json.loads(get_secret_value_response["SecretString"])
+        AWS_ACCESS_KEY = secret_dict.get("AWS_ACCESS_KEY_ID")
+        AWS_SECRET_KEY = secret_dict.get("AWS_SECRET_ACCESS_KEY")
+        # AWS_REGION = secret_dict.get("AWS_DEFAULT_REGION")
+        DYNAMODB_ENDPOINT = secret_dict.get("DYNAMODB_ENDPOINT")
+        FLASK_SECRET_KEY = secret_dict.get("FLASK_SECRET_KEY")
+        GITHUB_TOKEN = secret_dict.get("GITHUB_TOKEN")
+        S3_BUCKET_NAME = secret_dict.get("S3_BUCKET_NAME")
+        logger.info("Loaded secrets from AWS Secrets Manager")
+    except ClientError as e:
+        # secrets manager error - unable to use global variables
+        logger.error(f"Could not load from Secrets Manager ({e}), using environment variables")
+
+# Import storage
+from storage import S3Storage
+
+# Import database and services
+from database import get_db, init_db, UserRole, AuditAction, db_manager, User
+from dynamodb_service import DynamoDBService
+
+logger.info("Removed Cognito Authentication - not actually necessary after all FML")
+
+# try:
+#     from cognito_auth import CognitoAuthService
+#     cognito_auth = CognitoAuthService(AWS_ACCESS_KEY, AWS_SECRET_KEY)
+#     from cognito_middleware import (
+#         require_auth, require_admin, require_uploader, require_downloader,
+#         optional_auth, get_current_user
+#     )
+#     USE_COGNITO = cognito_auth.enabled
+#     logger.debug(f"Cognito authentication: {'ENABLED' if USE_COGNITO else 'DISABLED'}")
+# except Exception as e:
+#     logger.error(f"Cognito initialization failed: {e}")
+#     logger.warning("Authentication will not be available")
+#     USE_COGNITO = False
 
 from health_monitor import health_monitor
 from audit_service import AuditService
@@ -150,7 +146,7 @@ dynamodb_service = DynamoDBService(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, D
 
 # Initialize database on startup
 with app.app_context():
-    init_db()
+    dynamodb_service.init_db() # TODO: make sure this works and doesn't fucking kill everything
 
 def convert_floats_to_decimals(obj):
     """
@@ -255,183 +251,27 @@ def forbidden(error):
     }), 403
 
 # ============================================================================
-# AUTHENTICATION ENDPOINTS
+# AUTHENTICATION ENDPOINT
 # ============================================================================
 
 @app.route('/authenticate', methods=['PUT'])
 def authenticate():
     """
     Authenticate user and return access token using AWS Cognito.
-    
-    Request body:
-    {
-        "User": {
-            "name": "username or email",
-            "isAdmin": true
-        },
-        "Secret": {
-            "password": "user_password"
-        }
-    }
-    
+    NOPE NOT USING COGNITO FUCKKKK
+
     Returns:
-        200: Token generated successfully
-        401: Authentication failed
-        400: Invalid request
-        500: Error during authentication
+        501: Not implemented
     """
-    try:
-        logger.info('Authenticate endpoint called from %s', request.remote_addr)
-        data = request.get_json()
-
-        if not data:
-            logger.warning('Authenticate called without request body')
-            return jsonify({"error": "Request body required"}), 400
-
-        # Support both uppercase (legacy) and lowercase (OpenAPI spec) keys
-        user_data = data.get("user") or data.get("User", {})
-        secret_data = data.get("secret") or data.get("Secret", {})
-
-        username = user_data.get("name")
-        password = secret_data.get("password")
-
-        if not username or not password:
-            logger.warning('Authenticate missing username or password (username provided: %s)', bool(username))
-            return jsonify({"error": "Username and password required"}), 400
-
-        logger.debug('Authenticating user: %s', username)
-
-        if not USE_COGNITO:
-            logger.error('Cognito authentication is not configured')
-            return jsonify({"error": "Authentication service not available"}), 503
-        
-        try:
-            result = cognito_auth.authenticate(username, password)
-            logger.info('User %s authenticated via Cognito', username)
-            # OpenAPI spec expects JSON string: "bearer TOKEN"
-            token = f"bearer {result['access_token']}"
-            return jsonify(token), 200
-        except Exception as cognito_error:
-            logger.warning('Cognito authentication failed for %s: %s', username, cognito_error)
-            return jsonify({"error": "Invalid credentials"}), 401
-
-    except Exception as e:
-        logger.exception('Error in authenticate endpoint')
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/users', methods=['POST'])
-#@require_admin()
-def create_user():
-    """
-    Create a new user using AWS Cognito (admin only).
-    
-    Request body:
-    {
-        "username": "newuser",
-        "password": "SecurePass123!",
-        "role": "uploader"  // admin, uploader, searcher, downloader
-    }
-    """
-    try:
-        logger.info('Create user endpoint called by %s', request.remote_addr)
-        data = request.get_json()
-
-        if not data:
-            logger.warning('Create user called without data')
-            return jsonify({"error": "Data not returned"}), 404
-
-        username = data.get("username")
-        email = data.get("email", username)
-        password = data.get("password")
-        role_str = data.get("role", "searcher")
-
-        if not username or not password:
-            logger.warning('Create user missing username or password')
-            return jsonify({"error": "Username and password required"}), 400
-
-        logger.debug('Creating user %s with role %s', username, role_str)
-
-        if not USE_COGNITO:
-            logger.error('Cognito authentication is not configured')
-            return jsonify({"error": "User management service not available"}), 503
-
-        # Cognito user creation
-        valid_roles = ["admin", "uploader", "searcher", "downloader"]
-        if role_str not in valid_roles:
-            logger.warning('Invalid role provided for create_user: %s', role_str)
-            return jsonify({
-                "error": f"Invalid role. Must be one of: {valid_roles}"
-            }), 400
-
-        user = cognito_auth.create_user(username, email, password, role_str)
-        logger.info('Created Cognito user %s', username)
-        return jsonify({
-            "success": True,
-            "user": user
-        }), 201
-
-    except ValueError as e:
-        logger.exception('ValueError in create_user')
-        return jsonify({"error": str(e)}), 400
-    except Exception as e:
-        logger.exception('Exception in create_user')
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/users/<username>', methods=['DELETE'])
-#@require_admin()
-def delete_user(username: str):
-    """
-    Delete a user using AWS Cognito (admin only).
-    """
-    try:
-        logger.info('Delete user called for %s by %s', username, request.remote_addr)
-        
-        if not USE_COGNITO:
-            logger.error('Cognito authentication is not configured')
-            return jsonify({"error": "User management service not available"}), 503
-        
-        # Delete user from Cognito
-        cognito_auth.delete_user(username)
-        logger.info('Deleted Cognito user %s', username)
-        return jsonify({"success": True, "message": f"User {username} deleted"}), 200
-
-    except ValueError as e:
-        logger.exception('ValueError in delete_user')
-        return jsonify({"error": str(e)}), 400
-    except Exception as e:
-        logger.exception('Exception in delete_user')
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/users', methods=['GET'])
-#@require_admin()
-def list_users():
-    """List all users using AWS Cognito (admin only)."""
-    try:
-        logger.info('List users called by %s', request.remote_addr)
-        
-        if not USE_COGNITO:
-            logger.error('Cognito authentication is not configured')
-            return jsonify({"error": "User management service not available"}), 503
-        
-        # Get users from Cognito
-        users = cognito_auth.list_users()
-        logger.debug('Found %s users', len(users))
-        return jsonify({
-            "success": True,
-            "count": len(users),
-            "users": users
-        }), 200
-
-    except Exception as e:
-        logger.exception('Error in list_users')
-        return jsonify({"error": str(e)}), 500
+    # try:
+    logger.info('Authenticate endpoint called from %s', request.remote_addr)
+    return jsonify({"error": "Not implemented"}), 501
 
 # ============================================================================
 # HEALTH MONITORING ENDPOINTS
 # ============================================================================
 
 @app.route('/health', methods=['GET'])
-#@require_admin()
 def health_check():
     """
     Simple liveness check (admin only).
@@ -449,14 +289,13 @@ def health_check():
 def get_tracks():
     """Get system tracks (for autograder tracking)."""
     # OpenAPI spec requires exact case: "Access control track" (lowercase c and t)
-    planned_tracks = ["Access control track"]
+    planned_tracks = ["High assurance track"]
     logger.info('Tracks endpoint called, returning plannedTracks: %s', planned_tracks)
     return jsonify({
-        "plannedTracks": planned_tracks
+        "plannedTracks":[planned_tracks]
     }), 200
 
 @app.route('/health/components', methods=['GET'])
-#@require_admin()
 def health_components():
     """
     Detailed component health check (admin only).
@@ -485,54 +324,8 @@ def health_components():
 # AUDIT TRAIL ENDPOINTS
 # ============================================================================
 
-@app.route('/artifact/<artifact_type>/<artifact_id>/audit', methods=['GET'])
-@require_auth()
-def get_audit_trail(artifact_type: str, artifact_id: str):
-    """
-    Get audit trail for an artifact.
-    
-    Query params:
-        limit: Maximum entries to return (default 100)
-        offset: Number of entries to skip (default 0)
-    """
-    try:
-        logger.info('Get audit trail called for %s/%s by %s', artifact_type, artifact_id, request.remote_addr)
-        limit = min(int(request.args.get('limit', 100)), 500)
-        offset = int(request.args.get('offset', 0))
-
-        session = get_db()
-        audit_service = AuditService(session)
-
-        # Log the audit access
-        current_user = get_current_user()
-        audit_service.log_audit(
-            artifact_id=artifact_id,
-            artifact_type=artifact_type,
-            username=current_user["username"] if current_user else None
-        )
-        session.commit()
-        logger.debug('Logged audit access for %s by %s', artifact_id, current_user)
-
-        # Get audit trail
-        trail = audit_service.get_artifact_audit_trail(artifact_id, limit, offset)
-
-        logger.info('Returning %s audit entries for %s', len(trail), artifact_id)
-        return jsonify({
-            "success": True,
-            "artifact_id": artifact_id,
-            "artifact_type": artifact_type,
-            "count": len(trail),
-            "limit": limit,
-            "offset": offset,
-            "audit_trail": trail
-        }), 200
-
-    except Exception as e:
-        logger.exception('Error in get_audit_trail')
-        return jsonify({"error": str(e)}), 500
-
 @app.route('/artifact/<artifact_type>/<artifact_id>/downloads', methods=['GET'])
-@require_auth()
+# @require_auth()
 def get_download_history(artifact_type: str, artifact_id: str):
     """Get download history for an artifact."""
     try:
@@ -557,34 +350,13 @@ def get_download_history(artifact_type: str, artifact_id: str):
         logger.exception('Error in get_download_history')
         return jsonify({"error": str(e)}), 500
 
-@app.route('/audit/statistics', methods=['GET'])
-#@require_admin()
-def get_audit_statistics():
-    """Get overall audit statistics (admin only)."""
-    try:
-        logger.info('Audit statistics requested by %s', request.remote_addr)
-        session = get_db()
-        audit_service = AuditService(session)
-
-        stats = audit_service.get_audit_statistics()
-        logger.debug('Audit statistics: %s', stats)
-
-        return jsonify({
-            "success": True,
-            "statistics": stats
-        }), 200
-
-    except Exception as e:
-        logger.exception('Error in get_audit_statistics')
-        return jsonify({"error": str(e)}), 500
-
 # ============================================================================
 # PACKAGE ENDPOINTS (with authentication and audit logging)
 # ============================================================================
 
 @app.route('/package', methods=['POST'])
-@require_uploader()
-@rate_limit(max_requests=50, window_seconds=60)
+# @require_uploader()
+# @rate_limit(max_requests=50, window_seconds=60)
 def upload_package():
     """
     Ingest a package and score it (requires uploader role).
@@ -630,7 +402,7 @@ def upload_package():
         logger.debug('Scoring results for %s: %s', name, scores)
 
         # Get current user
-        current_user = get_current_user()
+        # current_user = get_current_user()
 
         # Save package
         package_info = storage.save_package(
@@ -663,18 +435,18 @@ def upload_package():
         except Exception as e:
             logger.exception('Error saving package to DynamoDB: %s', e)
 
-        # Log to audit trail
-        session = get_db()
-        audit_service = AuditService(session)
-        audit_service.log_create(
-            artifact_id=package_info["id"],
-            artifact_type="model",  # TODO: detect type from URL
-            username=current_user["username"] if current_user else None,
-            artifact_name=name,
-            artifact_version=version
-        )
-        session.commit()
-        logger.debug('Audit log created for package %s', package_info.get('id'))
+        # # Log to audit trail
+        # session = get_db()
+        # audit_service = AuditService(session)
+        # audit_service.log_create(
+        #     artifact_id=package_info["id"],
+        #     artifact_type="model",  # TODO: detect type from URL
+        #     username=current_user["username"] if current_user else None,
+        #     artifact_name=name,
+        #     artifact_version=version
+        # )
+        # session.commit()
+        # logger.debug('Audit log created for package %s', package_info.get('id'))
 
         return jsonify({
             "success": True,
@@ -691,7 +463,7 @@ def upload_package():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/package/<package_id>', methods=['GET'])
-@require_auth()
+# @require_auth()
 def get_package(package_id: str):
     """
     Retrieve package by ID (requires authentication).
@@ -712,11 +484,11 @@ def get_package(package_id: str):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/packages/byRegex', methods=['GET'])
-@require_auth()
-@rate_limit(max_requests=100, window_seconds=60)
+# @require_auth()
+# @rate_limit(max_requests=100, window_seconds=60)
 def search_by_regex():
     """
-    Search packages by regex pattern (requires authentication).
+    Search packages by regex pattern
     
     Query parameter:
         RegEx: Regular expression pattern to match package names
@@ -749,8 +521,8 @@ def search_by_regex():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/artifact/<artifact_type>', methods=['POST'])
-@require_uploader()
-@rate_limit(max_requests=50, window_seconds=60)
+# @require_uploader()
+# @rate_limit(max_requests=50, window_seconds=60)
 def upload_artifact(artifact_type: str):
     """Upload/Ingest an artifact (requires uploader role)."""
     try:
@@ -805,19 +577,19 @@ def upload_artifact(artifact_type: str):
         except Exception as e:
             logger.exception('Error saving package to DynamoDB: %s', e)
 
-        # Audit logging
-        current_user = get_current_user()
-        session = get_db()
-        audit_service = AuditService(session)
-        audit_service.log_create(
-            artifact_id=package_info["id"],
-            artifact_type=artifact_type,
-            username=current_user["username"] if current_user else None,
-            artifact_name=name,
-            artifact_version=version
-        )
-        session.commit()
-        session.close()
+        # # Audit logging
+        # # current_user = get_current_user()
+        # session = get_db()
+        # audit_service = AuditService(session)
+        # audit_service.log_create(
+        #     artifact_id=package_info["id"],
+        #     artifact_type=artifact_type,
+        #     username=current_user["username"] if current_user else None,
+        #     artifact_name=name,
+        #     artifact_version=version
+        # )
+        # session.commit()
+        # session.close()
 
         return jsonify({
             "success": True,
@@ -834,7 +606,7 @@ def upload_artifact(artifact_type: str):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/artifacts', methods=['POST'])
-@require_auth()
+# @require_auth()
 def query_artifacts():
     """
     Query artifacts with filters (requires authentication).
@@ -935,7 +707,7 @@ def query_artifacts():
 
 @app.route('/reset', methods=['DELETE'])
 #@require_admin()
-def reset_system():
+def reset_system(): # TODO: make sure this works properly
     """
     Reset system to initial state (admin only).
     Clears all packages and resets database.
@@ -1029,7 +801,7 @@ def reset_system():
         
         # Reinitialize with default admin
         try:
-            init_db()
+            dynamodb_service.init_db()
             logger.info('Database reinitialized with default admin')
         except Exception as e:
             logger.error('Database reinitialization failed: %s', e)
@@ -1306,25 +1078,25 @@ def run_scoring(url: str) -> Dict[str, Any]:
 if __name__ == '__main__':
     logger.info('Starting ECE461 Team 17 - Package Registry API')
     logger.info('Listening on http://127.0.0.1:8080')
-    print("=" * 60)
-    print("  ECE461 Team 17 - Package Registry API")
-    print("=" * 60)
-    print("\nAuthentication Endpoints:")
-    print("  PUT  /authenticate            - Generate JWT token")
-    print("  POST /users                   - Create user (admin)")
-    print("  GET  /users                   - List users (admin)")
-    print("  DELETE /users/<username>      - Delete user")
-    print("\nHealth Monitoring:")
-    print("  GET  /health                  - Liveness check")
-    print("  GET  /health/components       - Component health")
-    print("\nAudit Endpoints:")
-    print("  GET  /artifact/<type>/<id>/audit     - Audit trail")
-    print("  GET  /artifact/<type>/<id>/downloads - Download history")
-    print("\nPackage Endpoints:")
-    print("  POST /package                 - Ingest and score")
-    print("  GET  /package/<id>            - Retrieve package")
-    print("  GET  /packages/byRegex        - Search packages")
-    print("  DELETE /reset                 - Reset system (admin)")
-    print("\nListening on http://127.0.0.1:8080")
-    print("=" * 60)
-    app.run(host='127.0.0.1', port=8080)
+    # print("=" * 60)
+    # print("  ECE461 Team 17 - Package Registry API")
+    # print("=" * 60)
+    # print("\nAuthentication Endpoints:")
+    # print("  PUT  /authenticate            - Generate JWT token")
+    # print("  POST /users                   - Create user (admin)")
+    # print("  GET  /users                   - List users (admin)")
+    # print("  DELETE /users/<username>      - Delete user")
+    # print("\nHealth Monitoring:")
+    # print("  GET  /health                  - Liveness check")
+    # print("  GET  /health/components       - Component health")
+    # print("\nAudit Endpoints:")
+    # print("  GET  /artifact/<type>/<id>/audit     - Audit trail")
+    # print("  GET  /artifact/<type>/<id>/downloads - Download history")
+    # print("\nPackage Endpoints:")
+    # print("  POST /package                 - Ingest and score")
+    # print("  GET  /package/<id>            - Retrieve package")
+    # print("  GET  /packages/byRegex        - Search packages")
+    # print("  DELETE /reset                 - Reset system (admin)")
+    # print("\nListening on http://127.0.0.1:8080")
+    # print("=" * 60)
+    app.run(host='127.0.0.1', port=8080, debug=True)

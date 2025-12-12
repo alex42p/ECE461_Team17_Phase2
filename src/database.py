@@ -219,10 +219,10 @@ def init_db():
             session.add(admin_user)
             session.commit()
             logger.info(f"✓ Created default admin user: {autograder_admin_username}")
-            print(f"✓ Created default admin user: {autograder_admin_username}")
+            # print(f"✓ Created default admin user: {autograder_admin_username}")
         else:
             logger.info(f"✓ Default admin user already exists: {autograder_admin_username}")
-            print(f"✓ Default admin user already exists: {autograder_admin_username}")
+            # print(f"✓ Default admin user already exists: {autograder_admin_username}")
         
     except Exception as e:
         session.rollback()

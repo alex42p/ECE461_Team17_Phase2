@@ -35,21 +35,22 @@ class DatasetQualityMetric(Metric):
 
         dataset_url = metadata["hf_metadata"].get("dataset_url", "")
         if not dataset_url:
+            score_from_readme: float = self._eval_readme(metadata["hf_metadata"].get("readme_text", ""))
             return MetricResult(
                 name=self.name,
-                value=0.0,
+                value=score_from_readme,
                 details={"error": "Missing dataset URL"},
                 latency_ms=1,
             )
 
         dataset_metadata = fetch_dataset_metadata(dataset_url) or {}
 
-        downloads = dataset_metadata.get("downloads", 0) or 0
-        likes = dataset_metadata.get("likes", 0) or 0
-        num_files = dataset_metadata.get("num_files", 0) or 0
-        size_mb = dataset_metadata.get("size_mb", 0) or 0
-        readme_text = dataset_metadata.get("readme_text", "") or ""
-        license_str = dataset_metadata.get("license", "unknown") or "unknown"
+        downloads = dataset_metadata.get("downloads", 0)
+        likes = dataset_metadata.get("likes", 0)
+        num_files = dataset_metadata.get("num_files", 0)
+        size_mb = dataset_metadata.get("size_mb", 0)
+        readme_text = dataset_metadata.get("readme_text", "")
+        license_str = dataset_metadata.get("license", "unknown")
 
         # --- Fallbacks ---
         if downloads == 0 and likes > 0:
@@ -80,9 +81,6 @@ class DatasetQualityMetric(Metric):
         # 5. Readme Score
         readme_score = 1.0 if len(readme_text) > 300 else len(readme_text) / 300.0
 
-        # 6. License Score
-        # license_score = 1.0 if license_str and license_str.lower() != "unknown" else 0.0
-
         # Weighted aggregation
         weights = {
             "popularity": 0.3,
@@ -90,7 +88,6 @@ class DatasetQualityMetric(Metric):
             "file_score": 0.15,
             "size_score": 0.15,
             "readme_score": 0.15,
-            # "license_score": 0.1,
         }
 
         total = (
@@ -99,7 +96,6 @@ class DatasetQualityMetric(Metric):
             weights["file_score"] * file_score +
             weights["size_score"] * size_score +
             weights["readme_score"] * readme_score
-            # weights["license_score"] * license_score
         )
 
         details = {
@@ -108,7 +104,6 @@ class DatasetQualityMetric(Metric):
             "file_score": round(file_score, 3),
             "size_score": round(size_score, 3),
             "readme_score": round(readme_score, 3),
-            # "license_score": round(license_score, 3),
             "downloads": downloads,
             "likes": likes,
             "num_files": num_files,
@@ -124,3 +119,8 @@ class DatasetQualityMetric(Metric):
             details=details,
             latency_ms=latency,
         )
+
+    def _eval_readme(self, readme: str) -> float:
+        """Give a 1.0 if datasets are mentioned in readme"""
+        checks = ["dataset:", "datasets:", "huggingface dataset"]
+        return 1.0 if any(check in readme.lower() for check in checks) else 0.0

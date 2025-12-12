@@ -18,11 +18,7 @@ logger = logging.getLogger(__name__)
 
 class CodeQualityMetric(Metric):
     """
-    Computes code quality for Hugging Face model repos based on heuristics:
-      - Presence of README.md
-      - Presence of config.json
-      - Presence of .py files (esp. train.py / run.py)
-      - Project cleanliness (few junk files)
+    Computes code quality for Hugging Face model repos
     """
     @property
     def name(self) -> str:
@@ -30,9 +26,8 @@ class CodeQualityMetric(Metric):
 
     def compute(self, metadata: Dict[str, Any]) -> MetricResult:
         t0 = time.time()
-        # model_id = metadata["hf_metadata"].get("repo_id", None)
         nof_code_ds = metadata.get("nof_code_ds") or {}
-        if nof_code_ds.get("nof_code"):
+        if nof_code_ds.get("nof_code") or self._check_readme_for_codebase_mentions(metadata["hf_metadata"].get("readme_text", "")):
             return MetricResult(
                 name=self.name,
                 value=1.0,
@@ -47,45 +42,7 @@ class CodeQualityMetric(Metric):
                 latency_ms=0
             )
 
-        # if not model_id:
-        #     return MetricResult(
-        #         name=self.name,
-        #         value=0.0,
-        #         details={"error": "No model ID found in metadata"},
-        #         latency_ms=0
-        #     )
-        # logger.info(f"Computing code quality for model {model_id}")
-
-        # try:
-        #     score = 0.0
-        #     siblings = metadata["hf_metadata"].get("siblings", [])
-
-        #     readme_len = len(metadata["hf_metadata"].get("readme_text", ""))  
-        #     if readme_len:
-        #         score += min(1.0, readme_len / 500.0) * 0.5
-
-        #     # check if config.json is in the siblings list
-        #     for file_info in siblings:
-        #         file = file_info.get("rfilename", "").lower()
-        #         if file == "config.json":
-        #             score += 0.5
-        #             break
-
-        #     latency = max(1, int((time.time() - t0) * 1000))
-        #     return MetricResult(
-        #         name=self.name,
-        #         value=score,
-        #         details={"success": True},
-        #         latency_ms=latency
-        #     )
-
-        # except Exception as e:
-        #     print(f"Error computing code quality for {model_id}: {e}")
-        #     latency = max(1, int((time.time() - t0) * 1000))
-        #     return MetricResult(
-        #         name=self.name,
-        #         value=0.0,
-        #         details={"error": str(e)},
-        #         latency_ms=latency
-        #     )
-
+    def _check_readme_for_codebase_mentions(self, readme: str) -> bool:
+        # if it mentions the word github it gets a 1 - fuck it  
+        code_indicators = ["github", "bitbucket"]
+        return any(indicator in readme.lower() for indicator in code_indicators)
