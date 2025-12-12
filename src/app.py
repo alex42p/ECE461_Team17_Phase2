@@ -291,7 +291,7 @@ def get_tracks():
     planned_tracks = ["High assurance track"]
     logger.info('Tracks endpoint called, returning plannedTracks: %s', planned_tracks)
     return jsonify({
-        "plannedTracks":[planned_tracks]
+        "plannedTracks": planned_tracks
     }), 200
 
 @app.route('/health/components', methods=['GET'])

@@ -25,7 +25,7 @@ class S3Storage:
             bucket_name: Optional[str] = None
     ):
         """Initialize storage directory."""
-        self.__name__ = "S3Storage"
+        self.__name__ = self.__class__.__name__
         # Always resolve to absolute path to avoid working directory issues
         # Convert to Path if it's a string, then resolve to absolute
         if isinstance(storage_dir, str):
