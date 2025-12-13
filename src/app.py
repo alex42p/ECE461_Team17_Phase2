@@ -235,17 +235,17 @@ def forbidden(error):
 # AUTHENTICATION ENDPOINT
 # ============================================================================
 
-@app.route('/authenticate', methods=['PUT'])
-def authenticate():
-    """
-    Authenticate user and return access token using AWS Cognito.
-    NOPE NOT USING COGNITO FUCKKKK
+# @app.route('/authenticate', methods=['PUT'])
+# def authenticate():
+#     """
+#     Authenticate user and return access token using AWS Cognito.
+#     NOPE NOT USING COGNITO FUCKKKK
 
-    Returns:
-        501: Not implemented
-    """
-    logger.info('Authenticate endpoint called from %s', request.remote_addr)
-    return jsonify({"error": "Not implemented"}), 501
+#     Returns:
+#         501: Not implemented
+#     """
+#     logger.info('Authenticate endpoint called from %s', request.remote_addr)
+#     return jsonify({"error": "Not implemented"}), 501
 
 # ============================================================================
 # HEALTH MONITORING ENDPOINTS
@@ -268,8 +268,8 @@ def health_check():
 @app.route('/tracks', methods=['GET'])
 def get_tracks():
     """Get system tracks (for autograder tracking)."""
-    # planned_tracks = ["Access control track", "High assurance track"]
-    planned_tracks = ["Access control track"]
+    planned_tracks = ["Access control track", "High assurance track"]
+    # planned_tracks = ["Access control track"]
     logger.info('Tracks endpoint called, returning plannedTracks: %s', planned_tracks)
     return jsonify({
         "plannedTracks": planned_tracks
