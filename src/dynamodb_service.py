@@ -242,8 +242,8 @@ class DynamoDBService:
     def get_all_packages(self):
         """Get all packages from DynamoDB."""
         try:
-            response = self.table.scan()
-            return response.get('Items', [])
+            response = self.packages_table.scan()
+            return [self._convert_decimals_to_float(item) for item in response.get('Items', [])]
         except Exception as e:
             self.logger.error(f"Error getting all packages: {e}")
             return []
