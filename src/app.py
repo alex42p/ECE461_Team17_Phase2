@@ -644,56 +644,79 @@ def query_artifacts():
         else:
             # Default to empty query (return all)
             queries = [{"name": "*"}]
+
+        # QUERY FROM DYNAMODB INSTEAD OF LOCAL FILES
+        logger.debug('Query artifacts: format=%s, queries=%d', 
+                    'OpenAPI' if use_openapi_format else 'legacy', len(queries))
         
-        # Query all packages from storage
-        storage_path = storage.metadata_dir.resolve()
-        logger.debug('Query artifacts: Checking metadata directory %s (format: %s, queries: %d)', 
-                    storage_path, 'OpenAPI' if use_openapi_format else 'legacy', len(queries))
+        # Get all packages from DynamoDB
+        all_packages = dynamodb_service.get_all_packages()
         
         results = []
-        if storage_path.exists():
-            for metadata_file in storage_path.glob("*.json"):
-                try:
-                    with open(metadata_file, "r") as f:
-                        package_data = json.load(f)
-                        if package_data.get("is_deleted", False):
-                            continue
-                        
-                        # Check if package matches ANY query
-                        matches = False
-                        for query in queries:
-                            name_pattern = query.get("name", "*")
-                            type_filters = query.get("types", [])
-                            
-                            # Name matching (support wildcards)
-                            name_match = (name_pattern == "*" or 
-                                        name_pattern.lower() in package_data.get("name", "").lower())
-                            
-                            # Type filtering
-                            type_match = (not type_filters or 
-                                        package_data.get("artifact_type") in type_filters or
-                                        package_data.get("type") in type_filters)
-                            
-                            if name_match and type_match:
-                                matches = True
-                                break
-                        
-                        if matches:
-                            results.append(package_data)
-                except Exception:
-                    continue
+        for package in all_packages:
+            # Skip deleted packages
+            if package.get("is_deleted", False):
+                continue
+            
+            # Check if package matches ANY query
+            matches = False
+            for query in queries:
+                name_pattern = query.get("name", "*")
+                type_filters = query.get("types", [])
+                
+                # Get package name from metadata
+                pkg_name = package.get("metadata", {}).get("name", "")
+                pkg_type = package.get("metadata", {}).get("type", "")
+                
+                # Name matching (support wildcards)
+                name_match = (name_pattern == "*" or 
+                            name_pattern.lower() in pkg_name.lower())
+                
+                # Type filtering
+                type_match = (not type_filters or pkg_type in type_filters)
+                
+                if name_match and type_match:
+                    matches = True
+                    break
+            
+            if matches:
+                # Format response according to expected structure
+                result = {
+                    "metadata": {
+                        "id": package.get("metadata", {}).get("id", ""),
+                        "name": package.get("metadata", {}).get("name", ""),
+                        "type": package.get("metadata", {}).get("type", "")
+                    },
+                    "data": {
+                        "url": package.get("data", {}).get("url", ""),
+                        "download_url": package.get("data", {}).get("download_url", "")
+                    }
+                }
+                
+                # Generate presigned URL if needed
+                if not result["data"]["download_url"] and package.get("s3_key"):
+                    result["data"]["download_url"] = storage.generate_presigned_url(package["s3_key"])
+                
+                results.append(result)
         
         # Sort by created_at (newest first)
         if results:
-            results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+            results.sort(
+                key=lambda x: next(
+                    (p.get("created_at", "") for p in all_packages 
+                     if p.get("metadata", {}).get("id") == x["metadata"]["id"]), 
+                    ""
+                ),
+                reverse=True
+            )
+        
+        # Paginate
         paginated_results = results[offset:offset + limit]
         
         # Return appropriate format
         if use_openapi_format:
-            # OpenAPI format: return array of artifacts
             return jsonify(paginated_results), 200
         else:
-            # Legacy format: return object with metadata
             return jsonify({
                 "success": True,
                 "count": len(paginated_results),
@@ -706,6 +729,68 @@ def query_artifacts():
     except Exception as e:
         logger.exception('Error in query_artifacts')
         return jsonify({"error": str(e)}), 500
+        
+    #     # Query all packages from storage
+    #     storage_path = storage.metadata_dir.resolve()
+    #     logger.debug('Query artifacts: Checking metadata directory %s (format: %s, queries: %d)', 
+    #                 storage_path, 'OpenAPI' if use_openapi_format else 'legacy', len(queries))
+        
+    #     results = []
+    #     if storage_path.exists():
+    #         for metadata_file in storage_path.glob("*.json"):
+    #             try:
+    #                 with open(metadata_file, "r") as f:
+    #                     package_data = json.load(f)
+    #                     if package_data.get("is_deleted", False):
+    #                         continue
+                        
+    #                     # Check if package matches ANY query
+    #                     matches = False
+    #                     for query in queries:
+    #                         name_pattern = query.get("name", "*")
+    #                         type_filters = query.get("types", [])
+                            
+    #                         # Name matching (support wildcards)
+    #                         name_match = (name_pattern == "*" or 
+    #                                     name_pattern.lower() in package_data.get("name", "").lower())
+                            
+    #                         # Type filtering
+    #                         type_match = (not type_filters or 
+    #                                     package_data.get("artifact_type") in type_filters or
+    #                                     package_data.get("type") in type_filters)
+                            
+    #                         if name_match and type_match:
+    #                             matches = True
+    #                             break
+                        
+    #                     if matches:
+    #                         results.append(package_data)
+    #             except Exception:
+    #                 continue
+        
+    #     # Sort by created_at (newest first)
+    #     if results:
+    #         results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    #     paginated_results = results[offset:offset + limit]
+        
+    #     # Return appropriate format
+    #     if use_openapi_format:
+    #         # OpenAPI format: return array of artifacts
+    #         return jsonify(paginated_results), 200
+    #     else:
+    #         # Legacy format: return object with metadata
+    #         return jsonify({
+    #             "success": True,
+    #             "count": len(paginated_results),
+    #             "total": len(results),
+    #             "offset": offset,
+    #             "limit": limit,
+    #             "artifacts": paginated_results
+    #         }), 200
+            
+    # except Exception as e:
+    #     logger.exception('Error in query_artifacts')
+    #     return jsonify({"error": str(e)}), 500
 
 @app.route('/reset', methods=['DELETE'])
 #@require_admin()
