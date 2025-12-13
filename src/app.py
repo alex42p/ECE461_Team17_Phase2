@@ -43,7 +43,7 @@ GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 HF_TOKEN = os.environ.get("HF_TOKEN")
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 
-if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, FLASK_SECRET_KEY, GITHUB_TOKEN, S3_BUCKET_NAME]):
+if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, FLASK_SECRET_KEY, GITHUB_TOKEN, HF_TOKEN, S3_BUCKET_NAME]):
     # Load from AWS Secrets Manager if .env not available
     logger.info("Loading secrets from AWS Secrets Manager")
     import boto3
@@ -116,7 +116,7 @@ project_root = app_dir.parent  # project root (absolute)
 storage_dir_absolute = project_root / "package_storage"
 # Resolve to absolute path before passing to S3Storage
 storage_dir_absolute = storage_dir_absolute.resolve()
-storage = S3Storage(str(storage_dir_absolute), AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME)
+storage = S3Storage(str(storage_dir_absolute), AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME, HF_TOKEN)
 # Verify the path is correctly resolved
 resolved_metadata_dir = storage.metadata_dir.resolve()
 logger.info(f"Storage initialized: metadata_dir = {resolved_metadata_dir}")
@@ -350,13 +350,22 @@ def upload_artifact(artifact_type: str):
         url = data.get("url")
         if not url:
             return jsonify({"error": "URL is required"}), 400
+        if artifact_type == 'model':
+            scoring_dict = run_scoring(url)
+            # logger.debug(f"SCORING DICT: {scoring_dict}")
+            scores = scoring_dict.get("scores", {})
+            metadata = scoring_dict.get("model_metadata", {})
+            name = metadata.get("hf_metadata").get("repo_id")
+        elif artifact_type == 'dataset':
+            # For datasets, minimal scoring - just store metadata
+            name = "/".join(url.rstrip("/").split("/")[-2:])
+            logger.debug(f"Dataset name parsed as: {name}")
+            scores = {"net_score": {"value": 0.0, "latency_ms": 1}}
+        elif artifact_type == 'code':
+            # For code repos, minimal scoring - just store metadata
+            name = "/".join(url.rstrip("/").split("/")[-2:])
+            scores = {"net_score": {"value": 0.0, "latency_ms": 1}}
 
-        scoring_dict = run_scoring(url)
-        scores = scoring_dict.get("scores", {})
-        metadata = scoring_dict.get("model_metadata", {})
-        # logger.debug(f"Model metadata dict: {metadata}")
-        name = metadata.get("hf_metadata").get("repo_id")
-        # logger.debug(f"Name: {name}")
         # Save artifact with artifact_type
         package_info = storage.save_package(
             name=name,
