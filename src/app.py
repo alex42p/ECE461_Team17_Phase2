@@ -386,9 +386,9 @@ def upload_artifact(artifact_type: str):
 
             saved_to_db = dynamodb_service.create_package(dynamodb_package)
             if saved_to_db:
-                logger.info('Package %s saved to DynamoDB', package_info['id'])
+                logger.info('Package %s saved to DynamoDB', saved_to_db['metadata']['id'])
             else:
-                logger.warning('Failed to save package %s to DynamoDB', package_info['id'])
+                logger.warning('Failed to save package %s to DynamoDB', dynamodb_package['metadata']['id'])
         except Exception as e:
             logger.exception('Error saving package to DynamoDB: %s', e)
 
@@ -397,6 +397,89 @@ def upload_artifact(artifact_type: str):
     except Exception as e:
         logger.exception('Error in upload_artifact')
         return jsonify({"error": str(e)}), 500
+
+@app.route('/artifact/model/<id>/rate', methods=['GET'])
+def return_model_rate(id: str):
+    """
+    Return body:
+    {
+        "name": "bert-base-uncased",
+        "category": "model",
+        "net_score": 0,
+        "net_score_latency": 0,
+        "ramp_up_time": 0,
+        "ramp_up_time_latency": 0,
+        ...
+    }
+    """
+    try:
+        package = dynamodb_service.get_package(id)
+        logger.debug(f"Fetched package for rating: {package}")
+
+        # extract scores, name, and type from dynamodb package
+        if package:
+            scores = package.get("scores", {})
+            response = {
+                "name": package.get("metadata", {}).get("name", ""),
+                "category": package.get("metadata", {}).get("type", ""),
+            }
+            # add all other scores
+            for key, value in scores.items():
+                if key == "size_score":
+                    size_dict = value.get("value", {})
+                    response[key] = {size_key: float(size_value) for size_key, size_value in size_dict.items()}
+                    response[f"{key}_latency"] = int(value.get("latency_ms", 0))
+                else:
+                    response[key] = float(value.get("value", 0))
+                    response[f"{key}_latency"] = int(value.get("latency_ms", 0))
+
+            logger.debug(f"Returning rating response: {response}")
+            return jsonify(response), 200
+        else:
+            raise FileNotFoundError("Artifact not found")
+    except Exception as e:
+        logger.exception(f'Error in /rate: {e}')
+        return jsonify({"error": "Could not find artifact"}), 404
+
+@app.route('/artifact/model/<id>/license-check', methods=['POST'])
+def license_check(id: str):
+    """
+    Request:
+    {
+        "github_url": "https://github.com/google-research/bert"
+    }
+    Return body:
+    - bool
+    """
+    return jsonify({"error": "Not implemented yet"}), 400
+
+@app.route('/artifact/model/<id>/lineage', methods=['GET'])
+def lineage_check(id: str):
+    """
+    Return body:
+    {
+        "nodes": [
+            {
+                "artifact_id": 3847247294,
+                "name": "audience-classifier",
+                "source": "config_json"
+                },
+                {
+                "artifact_id": 9078563412,
+                "name": "bert-base-uncased",
+                "source": "config_json"
+            }
+        ],
+        "edges": [
+            {
+                "from_node_artifact_id": 9078563412,
+                "to_node_artifact_id": 3847247294,
+                "relationship": "base_model"
+            }
+        ]
+    }
+    """
+    return jsonify({"error": "Not implemented yet"}), 400
 
 @app.route('/artifacts', methods=['POST'])
 def query_artifacts():

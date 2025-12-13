@@ -185,33 +185,39 @@ class DynamoDBService:
         
         Args:
             package_data: Dictionary with package information
+            {
+                "metadata": 
+                {
+                    "id": "package-id",
+                    "type": "model",
+                    "name": "My Model"
+                },
+                "data": 
+                {
+                    "url": "huggingcface-url",
+                    "download_url": "presigned-url",
+                }
+                "scores": 
+                {
+                    "net_score": 0.85, 
+                    "net_score_latency": 0.9, ...
+                },
+                "created_at": timestamp,
+                "is_deleted": False
+            }
             
         Returns:
             Created package data
         """
-        timestamp = datetime.now(timezone.utc).isoformat()
-        
-        item = {
-            'id': package_data['id'],
-            'artifact_type': package_data.get('artifact_type', 'model'),
-            'name': package_data['name'],
-            'version': package_data.get('version', '1.0.0'),
-            'url': package_data.get('url'),
-            's3_key': package_data.get('s3_key'),
-            'readme_content': package_data.get('readme_content'),
-            'metadata': package_data.get('metadata', {}),
-            'scores': self._convert_floats_to_decimal(package_data.get('scores', {})),
-            'net_score': Decimal(str(package_data.get('net_score', 0.0))),
-            'is_deleted': False,
-            'created_at': timestamp,
-            'updated_at': timestamp,
-            'created_by': package_data.get('created_by', 'system'),
-        }
+        # timestamp = datetime.now(timezone.utc).isoformat()
+        item = package_data.copy()
+        item['id'] = package_data['metadata']['id']
+        self.logger.info(f"Creating package with ID: {item.get('metadata').get('id')}") # type: ignore
         
         try:
             if self.packages_table:
                 self.packages_table.put_item(Item=item)
-                self.logger.info(f"Created package: {item['id']}")
+                self.logger.info(f"Created package: {item}")
                 return item
         except ClientError as e:
             self.logger.error(f"Error creating package: {e}")
@@ -220,9 +226,11 @@ class DynamoDBService:
     def get_package(self, package_id: str) -> Optional[Dict[str, Any]]:
         """Get package by ID"""
         try:
+            self.logger.debug(f"Fetching package with ID: {package_id}") 
             response = self.packages_table.get_item(Key={'id': package_id})
+            self.logger.debug(f"Get package response: {response}")
             item = response.get('Item')
-            
+            self.logger.debug(f"Fetched package item: {item}")
             if item and not item.get('is_deleted', False):
                 return self._convert_decimals_to_float(item)
             return None
@@ -331,114 +339,41 @@ class DynamoDBService:
             self.logger.error(f"Error querying packages by type: {e}")
             return []
     
-    def scan_packages(self, filters: Optional[Dict] = None, limit: int = 100) -> List[Dict[str, Any]]:
-        """
-        Scan packages with optional filters.
-        Use sparingly - scans are expensive.
-        """
-        try:
-            scan_kwargs = {'Limit': limit}
+    # def scan_packages(self, filters: Optional[Dict] = None, limit: int = 100) -> List[Dict[str, Any]]:
+    #     """
+    #     Scan packages with optional filters.
+    #     Use sparingly - scans are expensive.
+    #     """
+    #     try:
+    #         scan_kwargs = {'Limit': limit}
             
-            if filters:
-                filter_expr = None
-                expr_values = {}
+    #         if filters:
+    #             filter_expr = None
+    #             expr_values = {}
                 
-                if 'name' in filters:
-                    filter_expr = 'contains(#name, :name)'
-                    expr_values[':name'] = filters['name']
+    #             if 'name' in filters:
+    #                 filter_expr = 'contains(#name, :name)'
+    #                 expr_values[':name'] = filters['name']
                 
-                if 'artifact_type' in filters:
-                    type_expr = 'artifact_type = :type'
-                    expr_values[':type'] = filters['artifact_type']
-                    filter_expr = type_expr if not filter_expr else f"{filter_expr} AND {type_expr}"
+    #             if 'artifact_type' in filters:
+    #                 type_expr = 'artifact_type = :type'
+    #                 expr_values[':type'] = filters['artifact_type']
+    #                 filter_expr = type_expr if not filter_expr else f"{filter_expr} AND {type_expr}"
                 
-                if filter_expr:
-                    scan_kwargs['FilterExpression'] = filter_expr
-                    scan_kwargs['ExpressionAttributeValues'] = expr_values
-                    if 'name' in filters:
-                        scan_kwargs['ExpressionAttributeNames'] = {'#name': 'name'}
+    #             if filter_expr:
+    #                 scan_kwargs['FilterExpression'] = filter_expr
+    #                 scan_kwargs['ExpressionAttributeValues'] = expr_values
+    #                 if 'name' in filters:
+    #                     scan_kwargs['ExpressionAttributeNames'] = {'#name': 'name'}
             
-            response = self.packages_table.scan(**scan_kwargs)
-            items = [self._convert_decimals_to_float(item) 
-                    for item in response.get('Items', [])
-                    if not item.get('is_deleted', False)]
-            return items
+    #         response = self.packages_table.scan(**scan_kwargs)
+    #         items = [self._convert_decimals_to_float(item) 
+    #                 for item in response.get('Items', [])
+    #                 if not item.get('is_deleted', False)]
+    #         return items
             
-        except ClientError as e:
-            self.logger.error(f"Error scanning packages: {e}")
-            return []
-    
-    # # USER OPERATIONS
-    
-    # def create_user(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
-    #     """Create a new user"""
-    #     timestamp = datetime.now(timezone.utc).isoformat()
-        
-    #     item = {
-    #         'username': user_data['username'],
-    #         'password_hash': user_data['password_hash'],
-    #         'role': user_data.get('role', UserRole.SEARCHER.value),
-    #         'created_at': timestamp,
-    #         'is_active': True,
-    #     }
-        
-    #     try:
-    #         self.users_table.put_item(Item=item)
-    #         self.logger.info(f"Created user: {item['username']}")
-    #         return item
     #     except ClientError as e:
-    #         self.logger.error(f"Error creating user: {e}")
-    #         raise
-    
-    # def get_user(self, username: str) -> Optional[Dict[str, Any]]:
-    #     """Get user by username"""
-    #     try:
-    #         response = self.users_table.get_item(Key={'username': username})
-    #         return response.get('Item')
-    #     except ClientError as e:
-    #         self.logger.error(f"Error getting user {username}: {e}")
-    #         return None
-    
-    # def update_user(self, username: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    #     """Update user"""
-    #     update_expr = "SET "
-    #     expr_values = {}
-        
-    #     for i, (key, value) in enumerate(updates.items()):
-    #         if i > 0:
-    #             update_expr += ", "
-    #         update_expr += f"{key} = :{key}"
-    #         expr_values[f":{key}"] = value
-        
-    #     try:
-    #         response = self.users_table.update_item(
-    #             Key={'username': username},
-    #             UpdateExpression=update_expr,
-    #             ExpressionAttributeValues=expr_values,
-    #             ReturnValues='ALL_NEW'
-    #         )
-    #         return response.get('Attributes')
-    #     except ClientError as e:
-    #         self.logger.error(f"Error updating user {username}: {e}")
-    #         return None
-    
-    # def delete_user(self, username: str) -> bool:
-    #     """Delete user"""
-    #     try:
-    #         self.users_table.delete_item(Key={'username': username})
-    #         self.logger.info(f"Deleted user: {username}")
-    #         return True
-    #     except ClientError as e:
-    #         self.logger.error(f"Error deleting user {username}: {e}")
-    #         return False
-    
-    # def list_users(self, limit: int = 100) -> List[Dict[str, Any]]:
-    #     """List all users"""
-    #     try:
-    #         response = self.users_table.scan(Limit=limit)
-    #         return response.get('Items', [])
-    #     except ClientError as e:
-    #         self.logger.error(f"Error listing users: {e}")
+    #         self.logger.error(f"Error scanning packages: {e}")
     #         return []
     
     # SYSTEM OPERATIONS
@@ -448,18 +383,7 @@ class DynamoDBService:
         try:
             # clear all packages
             self._clear_table(self.packages_table, 'id')
-            
-            # # clear all users
-            # self._clear_table(self.users_table, 'username')
-            
-            # # clear all audit logs
-            # self._clear_table(self.audit_table, 'id', 'timestamp')
-            
-            # # clear all tokens
-            # self._clear_table(self.tokens_table, 'token_id')
-            
             self.logger.info("Database reset completed")
-            
         except Exception as e:
             self.logger.error(f"Error resetting database: {e}")
             raise
