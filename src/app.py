@@ -235,17 +235,17 @@ def forbidden(error):
 # AUTHENTICATION ENDPOINT
 # ============================================================================
 
-# @app.route('/authenticate', methods=['PUT'])
-# def authenticate():
-#     """
-#     Authenticate user and return access token using AWS Cognito.
-#     NOPE NOT USING COGNITO FUCKKKK
+@app.route('/authenticate', methods=['PUT'])
+def authenticate():
+    """
+    Authenticate user and return access token using AWS Cognito.
+    NOPE NOT USING COGNITO FUCKKKK
 
-#     Returns:
-#         501: Not implemented
-#     """
-#     logger.info('Authenticate endpoint called from %s', request.remote_addr)
-#     return jsonify({"error": "Not implemented"}), 501
+    Returns:
+        501: Not implemented
+    """
+    logger.info('Authenticate endpoint called from %s', request.remote_addr)
+    return jsonify({"error": "Not implemented"}), 501
 
 # ============================================================================
 # HEALTH MONITORING ENDPOINTS
