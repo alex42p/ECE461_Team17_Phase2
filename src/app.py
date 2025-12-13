@@ -385,20 +385,28 @@ def upload_artifact(artifact_type: str):
         
         logger.info(f"Artifact {package_info['metadata']['id']} ingested and scored successfully")
 
-        # Save to DynamoDB
         try:
-            # Convert package to DynamoDB format
-            dynamodb_package = package_info.copy() # shallow copy package info before adding extra stuff
+            dynamodb_package = package_info.copy()
+            
+            # Ensure scores are properly structured
             dynamodb_package['scores'] = convert_floats_to_decimals(scores)
             dynamodb_package['created_at'] = datetime.now(timezone.utc).isoformat()
             dynamodb_package['is_deleted'] = False
+            
+            # Add top level fields for easier querying
+            dynamodb_package['name'] = package_info['metadata']['name']
+            dynamodb_package['artifact_type'] = package_info['metadata']['type']
 
-
+            logger.info(f"Saving to DynamoDB: {dynamodb_package.keys()}")
+            logger.debug(f"Scores being saved: {list(scores.keys())}")
+            
             saved_to_db = dynamodb_service.create_package(dynamodb_package)
             if saved_to_db:
-                logger.info('Package %s saved to DynamoDB', saved_to_db['metadata']['id'])
+                logger.info('Package %s saved to DynamoDB successfully', saved_to_db.get('id'))
             else:
-                logger.warning('Failed to save package %s to DynamoDB', dynamodb_package['metadata']['id'])
+                logger.error('Failed to save package %s to DynamoDB - create_package returned None', 
+                           dynamodb_package['metadata']['id'])
+                
         except Exception as e:
             logger.exception('Error saving package to DynamoDB: %s', e)
 
