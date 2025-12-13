@@ -31,4 +31,4 @@ urllib3>=1.26.18,<1.27
 # ML
 transformers # takes ~6GB of space, including its dependencies
 pyarrow>=10.0.0,<18.0.0  # Versions with prebuilt wheels
-datasets==4.0.0
+datasets>=2.18.0,<3.0.0
