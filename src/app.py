@@ -366,15 +366,43 @@ def upload_artifact(artifact_type: str):
                 else:
                     name = url_parts[-1]
                 logger.warning(f"Could not get repo_id from metadata, parsed from URL: {name}")
-        elif artifact_type == 'dataset':
-            # For datasets, minimal scoring - just store metadata
+        elif artifact_type in ['dataset', 'code']:
+            # Create complete score structure with defaults
             name = "/".join(url.rstrip("/").split("/")[-2:])
-            logger.debug(f"Dataset name parsed as: {name}")
-            scores = {"net_score": {"value": 0.0, "latency_ms": 1}}
-        elif artifact_type == 'code':
-            # For code repos, minimal scoring - just store metadata
-            name = "/".join(url.rstrip("/").split("/")[-2:])
-            scores = {"net_score": {"value": 0.0, "latency_ms": 1}}
+            logger.debug(f"{artifact_type} name parsed as: {name}")
+            
+            # Full score structure matching models
+            scores = {
+                "net_score": {"value": 0.0, "latency_ms": 1},
+                "ramp_up_time": {"value": 0.0, "latency_ms": 1},
+                "license": {"value": 1.0, "latency_ms": 1},  # Default to acceptable
+                "bus_factor": {"value": 0.0, "latency_ms": 1},
+                "code_quality": {"value": 0.0, "latency_ms": 1},
+                "dataset_quality": {"value": 0.0, "latency_ms": 1},
+                "dataset_and_code_score": {"value": 0.0, "latency_ms": 1},
+                "performance_claims": {"value": 0.0, "latency_ms": 1},
+                "size_score": {
+                    "value": {
+                        "raspberry_pi": 0.0,
+                        "jetson_nano": 0.0,
+                        "desktop_pc": 0.0,
+                        "aws_server": 0.0
+                    },
+                    "latency_ms": 1
+                },
+                "reproducibility": {"value": 0.0, "latency_ms": 1},
+                "reviewedness": {"value": 0.0, "latency_ms": 1},
+                "tree_score": {"value": 0.0, "latency_ms": 1}
+            }
+        # elif artifact_type == 'dataset':
+        #     # For datasets, minimal scoring - just store metadata
+        #     name = "/".join(url.rstrip("/").split("/")[-2:])
+        #     logger.debug(f"Dataset name parsed as: {name}")
+        #     scores = {"net_score": {"value": 0.0, "latency_ms": 1}}
+        # elif artifact_type == 'code':
+        #     # For code repos, minimal scoring - just store metadata
+        #     name = "/".join(url.rstrip("/").split("/")[-2:])
+        #     scores = {"net_score": {"value": 0.0, "latency_ms": 1}}
 
         # Save artifact with artifact_type
         package_info = storage.save_package(
