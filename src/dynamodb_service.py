@@ -49,7 +49,8 @@ class DynamoDBService:
             aws_access_key: Optional[str],
             aws_secret_key: Optional[str],
             region_name: Optional[str] = None,
-            endpoint_url: Optional[str] = None):
+            endpoint_url: Optional[str] = None # for local development with DynamoDB Local
+            ):
         """
         Initialize DynamoDB service.
         
