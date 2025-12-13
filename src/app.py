@@ -440,6 +440,64 @@ def return_model_rate(id: str):
     except Exception as e:
         logger.exception(f'Error in /rate: {e}')
         return jsonify({"error": "Could not find artifact"}), 404
+    
+@app.route('/artifacts/<artifact_type>/<id>', methods=['GET'])
+def get_artifact(artifact_type: str, id: str):
+    """
+    Get artifact metadata and download URL by ID.
+    
+    Args: artifact_type in ['model', 'dataset', 'code']
+
+    Return body:
+    {
+        "metadata": {
+            "id": str,
+            "name": str,
+            "type": str
+        },
+        "data": {
+            "url": str,
+            "download_url": str
+        }
+    }
+    """
+    try:
+        if artifact_type not in ['model', 'dataset', 'code']:
+            return jsonify({"error": "Invalid artifact type"}), 400
+        
+        # Get package from DynamoDB
+        package = dynamodb_service.get_package(id)
+        if not package:
+            logger.warning(f"Artifact {id} not found")
+            return jsonify({"error": "Artifact not found"}), 404
+        
+        # Check if deleted
+        if package.get("is_deleted", False):
+            return jsonify({"error": "Artifact not found"}), 404
+        
+        # Generate presigned S3 URL for download
+        download_url = package.get("data", {}).get("download_url")
+        if not download_url and package.get("s3_key"):
+            download_url = storage.generate_presigned_url(package.get("s3_key"))
+        
+        response = {
+            "metadata": {
+                "id": package.get("metadata", {}).get("id", id),
+                "name": package.get("metadata", {}).get("name", ""),
+                "type": package.get("metadata", {}).get("type", artifact_type)
+            },
+            "data": {
+                "url": package.get("data", {}).get("url", ""),
+                "download_url": download_url or ""
+            }
+        }
+        
+        logger.info(f"Successfully retrieved artifact {id}")
+        return jsonify(response), 200
+        
+    except Exception as e:
+        logger.exception(f'Error in get_artifact: {e}')
+        return jsonify({"error": str(e)}), 500
 
 # probably needs some work but idk how this endpoing works exactly
 @app.route('/artifact/model/<id>/license-check', methods=['POST'])
