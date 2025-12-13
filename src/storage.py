@@ -35,7 +35,8 @@ class S3Storage:
             aws_access_key: Optional[str] = None,
             aws_secret_key: Optional[str] = None,
             aws_region: Optional[str] = None,
-            bucket_name: Optional[str] = None
+            bucket_name: Optional[str] = None,
+            hf_token: Optional[str] = None
     ):
         """Initialize storage directory."""
         self.__name__ = self.__class__.__name__
@@ -73,6 +74,7 @@ class S3Storage:
             region_name=aws_region,
         )
         self.bucket_name = bucket_name
+        self.hf_token = hf_token
 
         if self.s3_client:
             self.logger.info("Created S3 client for region %s with bucket %s", aws_region, bucket_name)
@@ -132,20 +134,12 @@ class S3Storage:
                 s3_folder = self._get_s3_folder(artifact_type)
                 zip_filename = f"{safe_name}.zip"
                 s3_key = s3_folder + f"{package_id}/{zip_filename}"
-                
-                # clone repo to a local tempdir
-                # model_dir: Path = clone_model_repo(name)
-
-                # zip up the cloned repo
-                # shutil.make_archive(base_name=safe_name, format='zip', root_dir=model_dir)
-
-                # upload to S3
-                # s3_uri = self.upload_file_to_s3(zip_filename, s3_key)
 
                 # upload using streaming method
                 s3_uri = self._upload_huggingface_repo_streaming(
                     model_id=name,
-                    s3_key=s3_key
+                    s3_key=s3_key,
+                    artifact_type=artifact_type
                 )
 
                 download_url = self._generate_presigned_url(self.bucket_name, s3_key)
@@ -177,6 +171,7 @@ class S3Storage:
         self,
         model_id: str,
         s3_key: str,
+        artifact_type: Optional[str] = None,
         branch: str = "main",
         timeout: int = 600
     ) -> str:
@@ -199,8 +194,14 @@ class S3Storage:
             RuntimeError: If git operations fail
             subprocess.TimeoutExpired: If clone takes too long
         """
-        repo_url = f"https://huggingface.co/{model_id}"
-        
+        if not self.hf_token:
+            repo_url = f"https://huggingface.co/{model_id}"
+        elif artifact_type != "dataset":
+            repo_url = f"https://hf:{self.hf_token}@huggingface.co/{model_id}"
+        else:
+            repo_url = f"https://hf:{self.hf_token}@huggingface.co/datasets/{model_id}"
+            
+        self.logger.debug(f"REPO URL:{repo_url}")
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
             repo_path = tmpdir_path / "repo.git"
