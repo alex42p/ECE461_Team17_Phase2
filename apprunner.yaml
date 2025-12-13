@@ -3,8 +3,7 @@ runtime: python3
 
 build:
   commands: 
-    build: |
-      - pip install --upgrade pip
+    build:
       - pip install --no-cache-dir -r requirements.txt
 
 run:
