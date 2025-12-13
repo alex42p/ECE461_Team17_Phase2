@@ -352,10 +352,20 @@ def upload_artifact(artifact_type: str):
             return jsonify({"error": "URL is required"}), 400
         if artifact_type == 'model':
             scoring_dict = run_scoring(url)
-            # logger.debug(f"SCORING DICT: {scoring_dict}")
             scores = scoring_dict.get("scores", {})
             metadata = scoring_dict.get("model_metadata", {})
-            name = metadata.get("hf_metadata").get("repo_id")
+            # Safely extract name with fallback
+            hf_metadata = metadata.get("hf_metadata", {})
+            name = hf_metadata.get("repo_id")
+            # If repo_id not found, parse from URL
+            if not name:
+                # Extract from URL: https://huggingface.co/bert-base-uncased -> bert-base-uncased
+                url_parts = url.rstrip("/").split("/")
+                if len(url_parts) >= 2:
+                    name = "/".join(url_parts[-2:])  # org/model format
+                else:
+                    name = url_parts[-1]
+                logger.warning(f"Could not get repo_id from metadata, parsed from URL: {name}")
         elif artifact_type == 'dataset':
             # For datasets, minimal scoring - just store metadata
             name = "/".join(url.rstrip("/").split("/")[-2:])
@@ -441,7 +451,7 @@ def return_model_rate(id: str):
         logger.exception(f'Error in /rate: {e}')
         return jsonify({"error": "Could not find artifact"}), 404
     
-@app.route('/artifacts/<artifact_type>/<id>', methods=['GET'])
+@app.route('/artifact/<artifact_type>/<id>', methods=['GET'])
 def get_artifact(artifact_type: str, id: str):
     """
     Get artifact metadata and download URL by ID.
@@ -498,6 +508,8 @@ def get_artifact(artifact_type: str, id: str):
     except Exception as e:
         logger.exception(f'Error in get_artifact: {e}')
         return jsonify({"error": str(e)}), 500
+    
+
 
 # probably needs some work but idk how this endpoing works exactly
 @app.route('/artifact/model/<id>/license-check', methods=['POST'])
