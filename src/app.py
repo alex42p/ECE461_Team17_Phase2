@@ -451,7 +451,59 @@ def return_model_rate(id: str):
         logger.exception(f'Error in /rate: {e}')
         return jsonify({"error": "Could not find artifact"}), 404
     
-@app.route('/artifact/<artifact_type>/<id>', methods=['GET'])
+
+@app.route('/artifact/byName/<name>', methods=['GET'])
+def get_artifact_by_name(name: str):
+    """
+    Get all artifacts with exact name match.
+    
+    Returns array of artifacts matching the name.
+    """
+    try:
+        logger.info(f"Getting artifacts by name: {name}")
+        
+        # Query DynamoDB for packages with this name
+        all_packages = dynamodb_service.get_all_packages()
+        
+        # Filter by exact name match (case-insensitive)
+        matching_packages = []
+        for pkg in all_packages:
+            pkg_name = pkg.get("metadata", {}).get("name", "")
+            if pkg_name.lower() == name.lower() and not pkg.get("is_deleted", False):
+                # Generate presigned URL
+                download_url = pkg.get("data", {}).get("download_url")
+                if not download_url and pkg.get("s3_key"):
+                    download_url = storage.generate_presigned_url(pkg.get("s3_key"))
+                
+                matching_packages.append({
+                    "metadata": {
+                        "id": pkg.get("metadata", {}).get("id", ""),
+                        "name": pkg.get("metadata", {}).get("name", ""),
+                        "type": pkg.get("metadata", {}).get("type", "")
+                    },
+                    "data": {
+                        "url": pkg.get("data", {}).get("url", ""),
+                        "download_url": download_url or ""
+                    }
+                })
+        
+        if not matching_packages:
+            return jsonify({"error": "No artifacts found with that name"}), 404
+        
+        # Sort by created_at (newest first)
+        matching_packages.sort(
+            key=lambda x: all_packages[[p for p in all_packages if p.get("metadata", {}).get("id") == x["metadata"]["id"]][0]].get("created_at", ""),
+            reverse=True
+        )
+        
+        logger.info(f"Found {len(matching_packages)} artifacts with name {name}")
+        return jsonify(matching_packages), 200
+        
+    except Exception as e:
+        logger.exception(f'Error in get_artifact_by_name: {e}')
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/artifacts/<artifact_type>/<id>', methods=['GET'])
 def get_artifact(artifact_type: str, id: str):
     """
     Get artifact metadata and download URL by ID.
@@ -508,8 +560,6 @@ def get_artifact(artifact_type: str, id: str):
     except Exception as e:
         logger.exception(f'Error in get_artifact: {e}')
         return jsonify({"error": str(e)}), 500
-    
-
 
 # probably needs some work but idk how this endpoing works exactly
 @app.route('/artifact/model/<id>/license-check', methods=['POST'])
