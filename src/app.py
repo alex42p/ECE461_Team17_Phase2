@@ -441,6 +441,7 @@ def return_model_rate(id: str):
         logger.exception(f'Error in /rate: {e}')
         return jsonify({"error": "Could not find artifact"}), 404
 
+# probably needs some work but idk how this endpoing works exactly
 @app.route('/artifact/model/<id>/license-check', methods=['POST'])
 def license_check(id: str):
     """
@@ -451,7 +452,13 @@ def license_check(id: str):
     Return body:
     - bool
     """
-    return jsonify({"error": "Not implemented yet"}), 400
+    package = dynamodb_service.get_package(id)
+    if package:
+        scores = package.get("scores", {})
+        license_score = scores.get("license", {}).get("value", 0)
+        is_acceptable: bool = license_score == 1.0
+        return jsonify({"value": is_acceptable}), 200
+    return jsonify({"error": "Error getting package"}), 400
 
 @app.route('/artifact/model/<id>/lineage', methods=['GET'])
 def lineage_check(id: str):
