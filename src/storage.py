@@ -11,7 +11,20 @@ import boto3 # type: ignore
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+import subprocess
+import tempfile
 from typing import Optional, Dict, Any, List
+from enum import Enum
+# from huggingface_inspect import *
+
+class S3Folders(Enum):
+    """
+    Every package will be stored in one of these folders
+    in the S3 bucket depending on its artifact type
+    """
+    MODEL = "models/"
+    DATASET = "datasets/"
+    CODE = "codes/"
 
 class S3Storage:
     """Simple file-based storage for packages."""
@@ -26,23 +39,6 @@ class S3Storage:
     ):
         """Initialize storage directory."""
         self.__name__ = self.__class__.__name__
-        # Always resolve to absolute path to avoid working directory issues
-        # Convert to Path if it's a string, then resolve to absolute
-        if isinstance(storage_dir, str):
-            self.storage_dir = Path(storage_dir).resolve()
-        else:
-            self.storage_dir = Path(storage_dir).resolve()
-        self.metadata_dir = (self.storage_dir / "metadata").resolve()
-        self.s3_client = boto3.client(
-            's3', 
-            aws_access_key_id=aws_access_key,
-            aws_secret_access_key=aws_secret_key,
-            region_name=aws_region,
-        )
-        self.bucket_name = bucket_name
-        
-        # Create directories if they don't exist
-        self.metadata_dir.mkdir(parents=True, exist_ok=True)
 
         # logger setup
         self.logger = logging.getLogger(self.__name__)
@@ -57,109 +53,267 @@ class S3Storage:
         if not any(isinstance(h, logging.FileHandler) and h.baseFilename == str(log_file) for h in self.logger.handlers):
             fh = logging.FileHandler(str(log_file), mode='w')
             fh.setLevel(logging.DEBUG)
-            fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+            fmt = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
             fh.setFormatter(fmt)
             self.logger.addHandler(fh)
-        self.logger.info("Initialized PackageStorage")
+
+        # Always resolve to absolute path to avoid working directory issues
+        # Convert to Path if it's a string, then resolve to absolute
+        if isinstance(storage_dir, str):
+            self.storage_dir = Path(storage_dir).resolve()
+        else:
+            self.storage_dir = Path(storage_dir).resolve()
+        self.metadata_dir = (self.storage_dir / "metadata").resolve()
+
+        # create S3 client
+        self.s3_client = boto3.client(
+            's3', 
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            region_name=aws_region,
+        )
+        self.bucket_name = bucket_name
+
+        if self.s3_client:
+            self.logger.info("Created S3 client for region %s with bucket %s", aws_region, bucket_name)
+        
+        # Create directories if they don't exist
+        # self.metadata_dir.mkdir(parents=True, exist_ok=True)
+
+        self.logger.info("Initialized S3Storage")
     
     
-    def generate_package_id(self, name: str, version: str) -> str:
+    def generate_package_id(self, name: str) -> str:
         """Generate unique package ID."""
-        # Format: name-version-hash
         # sanitize name to avoid path separators in filenames
         safe_name = name.replace('/', '_').replace('\\', '_')
-        unique_str = f"{safe_name}-{version}-{datetime.now(timezone.utc).isoformat()}"
-        hash_suffix = hashlib.md5(unique_str.encode()).hexdigest()[:8]
-        pkg_id = f"{safe_name}-{version}-{hash_suffix}"
-        try:
-            self.logger.debug("generate_package_id: name=%s safe_name=%s version=%s -> %s", name, safe_name, version, pkg_id)
-        except Exception:
-            pass
+        # unique_str = f"{safe_name}-{datetime.now(timezone.utc).isoformat()}"
+        # hash_suffix = hashlib.md5(unique_str.encode()).hexdigest()[:16]
+        pkg_id = hashlib.md5(safe_name.encode()).hexdigest()[:16]
         return pkg_id
     
     def save_package(
         self, 
         name: str,
-        version: str,
         url: Optional[str] = None,
-        scores: Optional[Dict[str, Any]] = None,
-        file_path: Optional[str] = None,
         artifact_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Save a package with metadata.
+        Save a package.
         
         Returns:
-            Package info including ID and metadata
+            Dict with package info:
+            {
+                "metadata": {
+                    "id": package_id,
+                    "name": name,
+                    "type": artifact_type
+                },
+                "data": {
+                    "url": url,
+                    "download_url": presigned_url
+                }
+            }
         """
-        self.logger.debug("save_package called: name=%s version=%s url=%s", name, version, url)
+        # self.logger.debug("save_package called: name=%s url=%s", name, url)
+        model_name = name.split('/')[-1]
+        download_url = None
 
         # Sanitize name for filesystem use and check for existing package
-        safe_name = name.replace('/', '_').replace('\\', '_')
-        # If a package with same safe_name and version already exists, return it
-        existing = list(self.metadata_dir.glob(f"{safe_name}-{version}-*.json"))
-        if existing:
-            try:
-                self.logger.info("save_package: found existing metadata file %s for %s", existing[0].name, name)
-                with open(existing[0], "r") as f:
-                    data = json.load(f)
-                    return data
-            except Exception as e:
-                self.logger.exception("save_package: failed to read existing metadata %s: %s", existing[0].name, e)
-                # If reading fails, continue and create a new one
-                pass
+        safe_name = model_name.replace('/', '_').replace('\\', '_')
 
         # Generate package ID
-        package_id = self.generate_package_id(name, version)
-        
-        # Prepare package metadata
-        package_data = {
-            "id": package_id,
-            "name": name,
-            "version": version,
-            "url": url,
-            "scores": scores or {},
-            "artifact_type": artifact_type or "model",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        # If a file_path is provided, upload the file to S3 and update metadata
-        if file_path:
+        package_id = self.generate_package_id(safe_name)
+        self.logger.debug(f'Generated package ID: {package_id}')
+
+        if url:
+            # If URL is provided, clone the HF/Github repo, zip it up, and upload to S3
             try:
-                # Use a namespaced key to avoid collisions
-                base_name = os.path.basename(file_path)
-                s3_key = f"packages/{package_id}/{base_name}"
-                s3_uri = self.upload_file_to_s3(file_path, s3_key)
-                # add s3 metadata and update URL to point to S3 URI
-                package_data.setdefault('s3', {})
-                package_data['s3']['bucket'] = self.bucket_name # type: ignore
-                package_data['s3']['key'] = s3_key # type: ignore
-                package_data['s3']['uri'] = s3_uri # type: ignore
-                package_data['url'] = s3_uri # type: ignore
-                self.logger.info("save_package: uploaded file %s to S3 as %s", file_path, s3_uri)
+                s3_folder = self._get_s3_folder(artifact_type)
+                zip_filename = f"{safe_name}.zip"
+                s3_key = s3_folder + f"{package_id}/{zip_filename}"
+                
+                # clone repo to a local tempdir
+                # model_dir: Path = clone_model_repo(name)
+
+                # zip up the cloned repo
+                # shutil.make_archive(base_name=safe_name, format='zip', root_dir=model_dir)
+
+                # upload to S3
+                # s3_uri = self.upload_file_to_s3(zip_filename, s3_key)
+
+                # upload using streaming method
+                s3_uri = self._upload_huggingface_repo_streaming(
+                    model_id=name,
+                    s3_key=s3_key
+                )
+
+                download_url = self._generate_presigned_url(self.bucket_name, s3_key)
+                
+                # clean up local files
+                # clean_up_cache(model_dir)
+
+                # os.remove(zip_filename)
+                self.logger.info(f'Uploaded zipped artifact to S3 as {s3_uri}')
             except Exception:
-                # Log and continue — metadata will still be saved locally
-                self.logger.exception("save_package: failed to upload file %s to S3", file_path)
-        
-        # Save metadata
-        metadata_file = self.metadata_dir / f"{package_id}.json"
-        try:
-            with open(metadata_file, "w") as f:
-                json.dump(package_data, f, indent=2)
-            self.logger.info("save_package: wrote metadata %s", metadata_file.name)
-        except Exception as e:
-            self.logger.exception("save_package: failed to write metadata %s: %s", metadata_file.name, e)
+                self.logger.exception(f'Failed to upload zipped artifact for {model_name} to S3')
+
+        package_data = {
+            "metadata": {
+                "id": package_id,
+                "name": model_name,
+                "type": artifact_type
+            },
+            "data": {
+                "download_url": download_url,
+                "url": url
+            }
+        }
+        self.logger.info(f'Saved package {package_data}')
 
         return package_data
 
-    def upload_file_to_s3(self, file_path: str, s3_key: str) -> str:
+    def _upload_huggingface_repo_streaming(
+        self,
+        model_id: str,
+        s3_key: str,
+        branch: str = "main",
+        timeout: int = 600
+    ) -> str:
+        """
+        Stream a HuggingFace repository directly to S3 without local storage.
+        
+        Uses git archive to stream zip output directly to S3 via multipart upload.
+        Only creates a minimal bare clone (~100MB) regardless of repo size.
+        
+        Args:
+            model_id: HuggingFace model ID (e.g., 'google-bert/bert-base-uncased')
+            s3_key: Target S3 key for the zip file
+            branch: Git branch to archive (default: 'main')
+            timeout: Timeout for git clone in seconds (default: 600)
+        
+        Returns:
+            S3 URI of uploaded zip file
+            
+        Raises:
+            RuntimeError: If git operations fail
+            subprocess.TimeoutExpired: If clone takes too long
+        """
+        repo_url = f"https://huggingface.co/{model_id}"
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            repo_path = tmpdir_path / "repo.git"
+            
+            try:
+                # Step 1: Shallow bare clone (minimal disk usage - only git metadata)
+                self.logger.info(f"Cloning {model_id} (shallow bare clone)")
+                result = subprocess.run(
+                    ["git", "clone", "--bare", "--depth=1", "--single-branch",
+                    "--branch", branch, repo_url, str(repo_path)],
+                    check=True,
+                    capture_output=True,
+                    timeout=timeout,
+                    text=True
+                )
+                
+                self.logger.debug(f"Clone completed: {result.stdout}")
+                
+            except subprocess.TimeoutExpired:
+                self.logger.error(f"Clone timeout for {model_id} after {timeout}s")
+                raise RuntimeError(f"Repository clone timed out: {model_id}")
+            except subprocess.CalledProcessError as e:
+                self.logger.error(f"Clone failed for {model_id}: {e.stderr}")
+                raise RuntimeError(f"Git clone failed: {e.stderr}")
+            
+            # Step 2: Stream git archive directly to S3
+            self.logger.info(f"Streaming archive to S3: {s3_key}")
+            
+            try:
+                # Start git archive process
+                process = subprocess.Popen(
+                    ["git", "--git-dir", str(repo_path), "archive",
+                    "--format=zip", branch],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+                
+                # upload_fileobj automatically handles multipart upload for large streams
+                # It will buffer and upload in chunks (default 8MB chunks)
+                self.s3_client.upload_fileobj(
+                    process.stdout,
+                    self.bucket_name,
+                    s3_key,
+                    ExtraArgs={
+                        'ContentType': 'application/zip',
+                        'Metadata': {
+                            'model_id': model_id,
+                            'source': 'huggingface'
+                        }
+                    }
+                )
+                
+                # Wait for git archive to finish and check for errors
+                _, stderr = process.communicate()
+                
+                if process.returncode != 0:
+                    error_msg = stderr.decode() if stderr else "Unknown error"
+                    self.logger.error(f"git archive failed: {error_msg}")
+                    raise RuntimeError(f"git archive failed: {error_msg}")
+                
+                s3_uri = f"s3://{self.bucket_name}/{s3_key}"
+                self.logger.info(f"Upload complete: {s3_uri}")
+                return s3_uri
+                
+            except Exception as e:
+                self.logger.exception(f"Error during archive/upload for {model_id}")
+                # Attempt to clean up partial upload
+                try:
+                    self.s3_client.delete_object(Bucket=self.bucket_name, Key=s3_key)
+                    self.logger.debug(f"Cleaned up partial upload at {s3_key}")
+                except Exception:
+                    pass  # Cleanup is best-effort
+                raise
+
+    
+    def _get_s3_folder(self, artifact_type: Optional[str]) -> str:
+        """
+        Get the S3 folder prefix based on artifact type.
+        Defaults to 'models/' if type is unknown.
+        """
+        if artifact_type == "model":
+            return S3Folders.MODEL.value
+        elif artifact_type == "dataset":
+            return S3Folders.DATASET.value
+        elif artifact_type == "code":
+            return S3Folders.CODE.value
+        else:
+            return S3Folders.MODEL.value  # default folder
+        
+    def _generate_presigned_url(self, bucket_name, s3_key, expiration=604800) -> Optional[str]:
+        """Generate a presigned URL to download an S3 object."""
+        try:
+            url: str = self.s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket_name, 'Key': s3_key},
+                ExpiresIn=expiration
+            )
+            self.logger.debug(f"Generated presigned URL for {s3_key}: {url}")
+            return url
+        except Exception as e:
+            self.logger.error(f"Error generating presigned URL: {e}")
+            return None
+
+    # REMOVE LATER - replaced by streaming upload above
+    def upload_file_to_s3(self, filename: str, s3_key: str) -> str:
         """
         Upload a local file to S3 and return the S3 URI (s3://bucket/key).
         """
         if not self.bucket_name:
             raise ValueError("S3 bucket name is not configured (S3_BUCKET_NAME).")
-
+        file_path = Path("./cache" + filename)
         if not os.path.exists(file_path):
-            raise FileNotFoundError(f"File not found: {file_path}")
+            raise FileNotFoundError(f"File not found: {filename}")
 
         try:
             self.logger.debug("upload_file_to_s3: uploading %s to %s/%s", file_path, self.bucket_name, s3_key)
@@ -172,6 +326,7 @@ class S3Storage:
             self.logger.exception("upload_file_to_s3: failed to upload %s to s3://%s/%s: %s", file_path, self.bucket_name, s3_key, e)
             raise
     
+    # REMOVE LATER - NEED TO REDESIGN
     def get_package(self, package_id: str) -> Optional[Dict[str, Any]]:
         """
         Retrieve package by ID.
@@ -202,6 +357,7 @@ class S3Storage:
             self.logger.exception("get_package: failed to read %s: %s", metadata_file.name, e)
             return None
     
+    # REDESIGN TO ACCESS DYNAMO LATER
     def search_by_regex(self, regex_pattern: str) -> List[Dict[str, Any]]:
         """
         Search packages by regex pattern on name.
@@ -214,10 +370,10 @@ class S3Storage:
         """
         import re
 
-        try:
-            self.logger.debug("search_by_regex: pattern=%s", regex_pattern)
-        except Exception:
-            pass
+        # try:
+        #     self.logger.debug("search_by_regex: pattern=%s", regex_pattern)
+        # except Exception:
+        #     pass
 
         try:
             pattern = re.compile(regex_pattern, re.IGNORECASE)
@@ -251,7 +407,7 @@ class S3Storage:
             reverse=True
         )
 
-        self.logger.debug("search_by_regex: found %d matches for pattern %s", len(results), regex_pattern)
+        # self.logger.debug("search_by_regex: found %d matches for pattern %s", len(results), regex_pattern)
         return results
     
     def get_packages_by_name(self, name: str) -> List[Dict[str, Any]]:
@@ -386,3 +542,194 @@ class S3Storage:
             self.logger.exception("clear_all_s3_objects: error clearing S3 bucket %s: %s", self.bucket_name, e)
             # Don't raise - allow reset to continue even if S3 cleanup fails
 
+    # def upload_huggingface_repo(
+    #     self,
+    #     model_id: str,
+    #     package_id: str,
+    #     branch: str = "main"
+    # ) -> str:
+    #     """
+    #     Clone and upload a HuggingFace repository directly to S3.
+        
+    #     Uses git archive to stream the repo without local storage.
+        
+    #     Args:
+    #         model_id: HuggingFace model ID (e.g., 'google-bert/bert-base-uncased')
+    #         package_id: Your internal package ID
+    #         branch: Git branch to archive (default: 'main')
+        
+    #     Returns:
+    #         S3 URI of uploaded zip file
+    #     """
+    #     import subprocess
+    #     import tempfile
+        
+    #     # Sanitize model_id for use in S3 key
+    #     safe_model_id = model_id.replace('/', '_')
+    #     s3_key = f"packages/{package_id}/{safe_model_id}.zip"
+        
+    #     repo_url = f"https://huggingface.co/{model_id}"
+        
+    #     with tempfile.TemporaryDirectory() as tmpdir:
+    #         tmpdir_path = Path(tmpdir)
+    #         repo_path = tmpdir_path / "repo.git"
+            
+    #         try:
+    #             # Step 1: Shallow bare clone (minimal disk usage)
+    #             self.logger.info(f"Cloning {model_id} (shallow)")
+    #             subprocess.run(
+    #                 ["git", "clone", "--bare", "--depth=1", "--single-branch",
+    #                 "--branch", branch, repo_url, str(repo_path)],
+    #                 check=True,
+    #                 capture_output=True,
+    #                 timeout=300  # 5 minute timeout
+    #             )
+                
+    #             # Step 2: Stream git archive directly to S3
+    #             self.logger.info(f"Streaming archive to S3: {s3_key}")
+                
+    #             # Start multipart upload for reliability
+    #             mpu = self.s3_client.create_multipart_upload(
+    #                 Bucket=self.bucket_name,
+    #                 Key=s3_key,
+    #                 ContentType='application/zip',
+    #                 Metadata={
+    #                     'model_id': model_id,
+    #                     'package_id': package_id
+    #                 }
+    #             )
+                
+    #             upload_id = mpu['UploadId']
+    #             parts = []
+    #             part_number = 1
+    #             chunk_size = 50 * 1024 * 1024  # 50MB chunks
+                
+    #             try:
+    #                 # Start git archive process
+    #                 process = subprocess.Popen(
+    #                     ["git", "--git-dir", str(repo_path), "archive",
+    #                     "--format=zip", branch],
+    #                     stdout=subprocess.PIPE,
+    #                     stderr=subprocess.PIPE
+    #                 )
+                    
+    #                 # Stream output to S3 in chunks
+    #                 while True:
+    #                     chunk = process.stdout.read(chunk_size) # type: ignore
+    #                     if not chunk:
+    #                         break
+                        
+    #                     part = self.s3_client.upload_part(
+    #                         Bucket=self.bucket_name,
+    #                         Key=s3_key,
+    #                         PartNumber=part_number,
+    #                         UploadId=upload_id,
+    #                         Body=chunk
+    #                     )
+                        
+    #                     parts.append({
+    #                         'PartNumber': part_number,
+    #                         'ETag': part['ETag']
+    #                     })
+                        
+    #                     part_number += 1
+    #                     self.logger.debug(f"Uploaded part {part_number}")
+                    
+    #                 # Wait for git archive to finish
+    #                 _, stderr = process.communicate()
+                    
+    #                 if process.returncode != 0:
+    #                     raise RuntimeError(f"git archive failed: {stderr.decode()}")
+                    
+    #                 # Complete multipart upload
+    #                 self.s3_client.complete_multipart_upload(
+    #                     Bucket=self.bucket_name,
+    #                     Key=s3_key,
+    #                     UploadId=upload_id,
+    #                     MultipartUpload={'Parts': parts}
+    #                 )
+                    
+    #                 s3_uri = f"s3://{self.bucket_name}/{s3_key}"
+    #                 self.logger.info(f"Successfully uploaded {model_id} to {s3_uri}")
+    #                 return s3_uri
+                    
+    #             except Exception as e:
+    #                 # Abort multipart upload on error
+    #                 self.logger.error(f"Upload failed, aborting: {e}")
+    #                 self.s3_client.abort_multipart_upload(
+    #                     Bucket=self.bucket_name,
+    #                     Key=s3_key,
+    #                     UploadId=upload_id
+    #                 )
+    #                 raise
+                    
+    #         except subprocess.TimeoutExpired:
+    #             self.logger.error(f"Clone timeout for {model_id}")
+    #             raise RuntimeError(f"Repository clone timed out: {model_id}")
+    #         except Exception as e:
+    #             self.logger.exception(f"Error uploading {model_id}: {e}")
+    #             raise
+
+
+    # def upload_huggingface_repo_simple(
+    #     self,
+    #     model_id: str,
+    #     package_id: str,
+    #     branch: str = "main"
+    # ) -> str:
+    #     """
+    #     Simpler version using upload_fileobj (auto-handles multipart).
+    #     Better for most cases unless you need fine control.
+    #     """
+    #     import subprocess
+    #     import tempfile
+        
+    #     safe_model_id = model_id.replace('/', '_')
+    #     s3_key = f"packages/{package_id}/{safe_model_id}.zip"
+    #     repo_url = f"https://huggingface.co/{model_id}"
+        
+    #     with tempfile.TemporaryDirectory() as tmpdir:
+    #         tmpdir_path = Path(tmpdir)
+    #         repo_path = tmpdir_path / "repo.git"
+            
+    #         # Shallow clone
+    #         self.logger.info(f"Cloning {model_id}")
+    #         subprocess.run(
+    #             ["git", "clone", "--bare", "--depth=1", "--single-branch",
+    #             "--branch", branch, repo_url, str(repo_path)],
+    #             check=True,
+    #             capture_output=True,
+    #             timeout=300
+    #         )
+            
+    #         # Stream git archive to S3
+    #         self.logger.info(f"Uploading to S3: {s3_key}")
+    #         process = subprocess.Popen(
+    #             ["git", "--git-dir", str(repo_path), "archive",
+    #             "--format=zip", branch],
+    #             stdout=subprocess.PIPE,
+    #             stderr=subprocess.PIPE
+    #         )
+            
+    #         # upload_fileobj automatically handles multipart for large streams
+    #         self.s3_client.upload_fileobj(
+    #             process.stdout,
+    #             self.bucket_name,
+    #             s3_key,
+    #             ExtraArgs={
+    #                 'ContentType': 'application/zip',
+    #                 'Metadata': {
+    #                     'model_id': model_id,
+    #                     'package_id': package_id
+    #                 }
+    #             }
+    #         )
+            
+    #         _, stderr = process.communicate()
+            
+    #         if process.returncode != 0:
+    #             raise RuntimeError(f"git archive failed: {stderr.decode()}")
+            
+    #         s3_uri = f"s3://{self.bucket_name}/{s3_key}"
+    #         self.logger.info(f"Upload complete: {s3_uri}")
+    #         return s3_uri

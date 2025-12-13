@@ -121,14 +121,6 @@ def score(url_file: str) -> None:
 
         scores["net_score"] = {"value": round(net_score, 2)}
 
-        # Save package into storage so future tree_score lookups can find this model
-        try:
-            pkg_name = model.repo_id or model.name or model.model_url.url
-            storage.save_package(name=pkg_name, version="1.0", url=model.model_url.url, scores=scores)
-        except Exception:
-            # non-fatal; continue scoring other models
-            pass
-
         model.add_results(metric_results)
         models.append(model)
 

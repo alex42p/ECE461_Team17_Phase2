@@ -34,7 +34,7 @@ class TreeScoreMetric(Metric):
         if not any(isinstance(h, logging.FileHandler) and h.baseFilename == str(log_file) for h in self.logger.handlers):
             fh = logging.FileHandler(str(log_file), mode='w')
             fh.setLevel(logging.DEBUG)
-            fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+            fmt = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
             fh.setFormatter(fmt)
             self.logger.addHandler(fh)
         self.logger.info("Initialized TreeScoreMetric (storage_present=%s)", bool(self.storage))

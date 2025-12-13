@@ -10,6 +10,7 @@ jobs:
 
     env: # add necessary environment variables here
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
       LOG_FILE: src/app.log
       LOG_LEVEL: '0'
       # leave these blank - only here to pass tests in GH Actions
@@ -21,8 +22,8 @@ jobs:
       AWS_COGNITO_USER_POOL_ID: ${{ secrets.AWS_COGNITO_USER_POOL_ID }}
       AWS_COGNITO_CLIENT_ID: ${{ secrets.AWS_COGNITO_CLIENT_ID }}
       AWS_COGNITO_CLIENT_SECRET: ${{ secrets.AWS_COGNITO_CLIENT_SECRET }}
-      DYNAMODB_ENDPOINT: 'http://localhost:8000'
-      DYNAMOODB_TABLE_PREFIX: ${{ secrets.DYNAMODB_TABLE_PREFIX }}
+      # DYNAMODB_ENDPOINT: 'http://localhost:8000'
+      # DYNAMOODB_TABLE_PREFIX: ${{ secrets.DYNAMODB_TABLE_PREFIX }}
 
     steps:
       - uses: actions/checkout@v4
