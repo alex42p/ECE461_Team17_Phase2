@@ -238,6 +238,16 @@ class DynamoDBService:
         except ClientError as e:
             self.logger.error(f"Error getting package {package_id}: {e}")
             return None
+        
+    def get_all_packages(self):
+        """Get all packages from DynamoDB."""
+        try:
+            response = self.table.scan()
+            return response.get('Items', [])
+        except Exception as e:
+            self.logger.error(f"Error getting all packages: {e}")
+            return []
+
     
     def update_package(self, package_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update package"""
