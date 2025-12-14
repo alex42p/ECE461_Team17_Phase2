@@ -566,7 +566,7 @@ def get_artifact(artifact_type: str, id: str):
         },
         "data": {
             "url": str,
-            "download_url": str
+            # "download_url": str
         }
     }
     """
@@ -592,7 +592,7 @@ def get_artifact(artifact_type: str, id: str):
             },
             "data": {
                 "url": package.get("data", {}).get("url", ""),
-                "download_url": package.get("data", {}).get("download_url", "")
+                # "download_url": package.get("data", {}).get("download_url", "")
             }
         }
         
