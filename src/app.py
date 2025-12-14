@@ -429,15 +429,22 @@ def upload_artifact(artifact_type: str):
             logger.debug(f"Scores being saved: {list(scores.keys())}")
             
             saved_to_db = dynamodb_service.create_package(dynamodb_package)
-            if saved_to_db:
-                logger.info('Package %s saved to DynamoDB successfully', saved_to_db.get('id'))
-            else:
-                logger.error('Failed to save package %s to DynamoDB - create_package returned None', 
-                           dynamodb_package['metadata']['id'])
+            if not saved_to_db:
+                logger.error(f'DynamoDB save returned None for {dynamodb_package["id"]}')
+                return jsonify({
+                    "error": "Failed to save to database",
+                    "id": dynamodb_package["id"]
+                }), 500  
+            
+            logger.info(f'Successfully saved {saved_to_db.get("id")} to DynamoDB')
                 
         except Exception as e:
-            logger.exception('Error saving package to DynamoDB: %s', e)
-
+            logger.exception(f'Exception while saving to DynamoDB: {e}')
+            return jsonify({
+                "error": f"Database error: {str(e)}",
+                "id": package_info['metadata']['id']
+            }), 500  
+        
         return jsonify(package_info), 201
 
     except Exception as e:
