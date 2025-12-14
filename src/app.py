@@ -297,17 +297,6 @@ def search_by_regex():
     
     """
     try:
-        # logger.info('Search by regex called by %s', request.remote_addr)
-        # regex_pattern = request.args.get('RegEx')
-
-        # if not regex_pattern:
-        #     logger.warning('search_by_regex missing RegEx parameter')
-        #     return jsonify({"error": "RegEx parameter is required"}), 400
-
-        # logger.debug('Searching packages with pattern: %s', regex_pattern)
-        # # Search packages
-        # results = storage.search_by_regex(regex_pattern)
-
         # Search packages from DynamoDB
         data = request.get_json()
         regex_pattern = data.get("regex") if data else None
@@ -318,19 +307,18 @@ def search_by_regex():
         
         matching_packages = dynamodb_service.search_packages_by_regex(regex_pattern)
         # return a list of matching packages' metadata dicts
-
-
+        
+        # return only the metadata fields from package
+        return_list = []
+        for pkg in matching_packages:
+            return_list.append({
+                "id": pkg.get("metadata", {}).get("id", ""),
+                "name": pkg.get("metadata", {}).get("name", ""),
+                "type": pkg.get("metadata", {}).get("type", "")
+            })
 
         # change later
-        return jsonify(matching_packages), 200
-
-        # logger.info('search_by_regex found %s results', len(results))
-        # return jsonify({
-        #     "success": True,
-        #     "count": len(results),
-        #     "regex_pattern": regex_pattern,
-        #     "packages": results
-        # }), 200
+        return jsonify(return_list), 200
 
     except ValueError as e:
         logger.exception('ValueError in search_by_regex')
