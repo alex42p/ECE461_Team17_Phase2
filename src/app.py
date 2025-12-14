@@ -728,7 +728,7 @@ def query_artifacts():
         if offset is not None:
             response.headers['offset'] = offset
         else:
-            response.headers['offset'] = '0'
+            response.headers['offset'] = str(len(results)) # idk what else to even try atp
         # Return appropriate format
         return response, 200
         
