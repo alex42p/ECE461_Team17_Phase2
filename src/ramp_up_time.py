@@ -54,7 +54,7 @@ class RampUpTimeMetric(Metric):
         latency = max(1, int((time.time() - t0) * 1000))
         return MetricResult(
             name=self.name,
-            value=score,
+            value=clamp(score),
             details=details,
             latency_ms=latency,
         )
