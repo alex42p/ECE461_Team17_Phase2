@@ -422,9 +422,10 @@ def upload_artifact(artifact_type: str):
             dynamodb_package['is_deleted'] = False
             
             # Add top level fields for easier querying
+            dynamodb_package['id'] = package_info['metadata']['id']  # PRIMARY KEY
             dynamodb_package['name'] = package_info['metadata']['name']
             dynamodb_package['artifact_type'] = package_info['metadata']['type']
-
+            
             logger.info(f"Saving to DynamoDB: {dynamodb_package.keys()}")
             logger.debug(f"Scores being saved: {list(scores.keys())}")
             
