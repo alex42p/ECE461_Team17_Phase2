@@ -137,17 +137,15 @@ class S3Storage:
 
                 # upload using streaming method
                 s3_uri = self._upload_huggingface_repo_streaming(
+                    url=url,
                     model_id=name,
                     s3_key=s3_key,
                     artifact_type=artifact_type
                 )
 
                 download_url = self._generate_presigned_url(self.bucket_name, s3_key)
-                
-                # clean up local files
-                # clean_up_cache(model_dir)
 
-                # os.remove(zip_filename)
+                self.logger.info(f'Generated presigned URL: {download_url}')
                 self.logger.info(f'Uploaded zipped artifact to S3 as {s3_uri}')
             except Exception:
                 self.logger.exception(f'Failed to upload zipped artifact for {model_name} to S3')
@@ -169,6 +167,7 @@ class S3Storage:
 
     def _upload_huggingface_repo_streaming(
         self,
+        url: str,
         model_id: str,
         s3_key: str,
         artifact_type: Optional[str] = None,
@@ -194,38 +193,72 @@ class S3Storage:
             RuntimeError: If git operations fail
             subprocess.TimeoutExpired: If clone takes too long
         """
-        if not self.hf_token:
-            repo_url = f"https://huggingface.co/{model_id}"
-        elif artifact_type != "dataset":
+        # if artifact_type == 'code':
+        #     repo_url = "https://github.com/"
+        # if not self.hf_token:
+        #     repo_url = f"https://huggingface.co/{model_id}"
+        # elif artifact_type != "dataset":
+        #     repo_url = f"https://hf:{self.hf_token}@huggingface.co/{model_id}"
+        # else:
+        #     repo_url = f"https://hf:{self.hf_token}@huggingface.co/datasets/{model_id}"
+
+        # if artifact_type == 'code':
+        #     repo_url = url
+        if self.hf_token and artifact_type == "model":
             repo_url = f"https://hf:{self.hf_token}@huggingface.co/{model_id}"
-        else:
+        elif self.hf_token and artifact_type == "dataset":
             repo_url = f"https://hf:{self.hf_token}@huggingface.co/datasets/{model_id}"
-            
+        else:
+            repo_url = url
+
+        
         self.logger.debug(f"REPO URL:{repo_url}")
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
             repo_path = tmpdir_path / "repo.git"
             
+            # default branch to use for clone/archive; will fall back to 'master' if needed
+            clone_branch = branch
             try:
                 # Step 1: Shallow bare clone (minimal disk usage - only git metadata)
-                self.logger.info(f"Cloning {model_id} (shallow bare clone)")
+                self.logger.info(f"Cloning {model_id} (shallow bare clone) branch={clone_branch}")
                 result = subprocess.run(
                     ["git", "clone", "--bare", "--depth=1", "--single-branch",
-                    "--branch", branch, repo_url, str(repo_path)],
+                    "--branch", clone_branch, repo_url, str(repo_path)],
                     check=True,
                     capture_output=True,
                     timeout=timeout,
                     text=True
                 )
-                
                 self.logger.debug(f"Clone completed: {result.stdout}")
                 
             except subprocess.TimeoutExpired:
                 self.logger.error(f"Clone timeout for {model_id} after {timeout}s")
                 raise RuntimeError(f"Repository clone timed out: {model_id}")
             except subprocess.CalledProcessError as e:
-                self.logger.error(f"Clone failed for {model_id}: {e.stderr}")
-                raise RuntimeError(f"Git clone failed: {e.stderr}")
+                # If the requested branch fails, try using 'master' as a fallback
+                if clone_branch.lower() != 'master':
+                    self.logger.warning(
+                        f"Clone failed for {model_id} using branch {clone_branch}: {e.stderr.strip()}. Trying 'master' as fallback."
+                    )
+                    clone_branch = 'master'
+                    try:
+                        result = subprocess.run(
+                            ["git", "clone", "--bare", "--depth=1", "--single-branch",
+                            "--branch", clone_branch, repo_url, str(repo_path)],
+                            check=True,
+                            capture_output=True,
+                            timeout=timeout,
+                            text=True
+                        )
+                        self.logger.info(f"Clone succeeded for {model_id} using fallback branch {clone_branch}")
+                        self.logger.debug(f"Clone completed: {result.stdout}")
+                    except subprocess.CalledProcessError as e2:
+                        self.logger.error(f"Clone failed for {model_id} using fallback branch {clone_branch}: {e2.stderr}")
+                        raise RuntimeError(f"Git clone failed: {e2.stderr}")
+                else:
+                    self.logger.error(f"Clone failed for {model_id}: {e.stderr}")
+                    raise RuntimeError(f"Git clone failed: {e.stderr}")
             
             # Step 2: Stream git archive directly to S3
             self.logger.info(f"Streaming archive to S3: {s3_key}")
@@ -234,7 +267,7 @@ class S3Storage:
                 # Start git archive process
                 process = subprocess.Popen(
                     ["git", "--git-dir", str(repo_path), "archive",
-                    "--format=zip", branch],
+                    "--format=zip", clone_branch],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE
                 )
@@ -249,7 +282,7 @@ class S3Storage:
                         'ContentType': 'application/zip',
                         'Metadata': {
                             'model_id': model_id,
-                            'source': 'huggingface'
+                            'source': 'huggingface' if 'artifact_type' == 'code' else 'github',
                         }
                     }
                 )
@@ -480,7 +513,7 @@ class S3Storage:
         
         return results[:limit]
     
-    def generate_presigned_url(self, s3_key: str, expiration: int = 3600) -> Optional[str]:
+    def generate_presigned_url(self, s3_key: Optional[str], expiration: int = 3600) -> Optional[str]:
         """
         Generate a pre-signed S3 URL for downloading an artifact.
         
@@ -491,7 +524,7 @@ class S3Storage:
         Returns:
             Pre-signed URL or None if bucket not configured
         """
-        if not self.bucket_name:
+        if not self.bucket_name or not s3_key:
             return None
         
         try:
@@ -500,10 +533,10 @@ class S3Storage:
                 Params={'Bucket': self.bucket_name, 'Key': s3_key},
                 ExpiresIn=expiration
             )
-            self.logger.debug("generate_presigned_url: generated URL for %s", s3_key)
+            self.logger.debug("Generated presigned URL for %s", s3_key)
             return url
         except Exception as e:
-            self.logger.exception("generate_presigned_url: failed to generate URL for %s: %s", s3_key, e)
+            self.logger.exception("Failed to generate presigned URL for %s: %s", s3_key, e)
             return None
     
     def clear_all_s3_objects(self):

@@ -413,6 +413,8 @@ def upload_artifact(artifact_type: str):
         
         logger.info(f"Artifact {package_info['metadata']['id']} ingested and scored successfully")
 
+        logger.debug(f'Package info: {package_info}')
+
         try:
             dynamodb_package = package_info.copy()
             
@@ -577,14 +579,9 @@ def get_artifact(artifact_type: str, id: str):
             logger.warning(f"Artifact {id} not found")
             return jsonify({"error": "Artifact not found"}), 404
         
-        # Check if deleted
+        # Check if deleted - should ALWAYS be false here
         if package.get("is_deleted", False):
             return jsonify({"error": "Artifact not found"}), 404
-        
-        # Generate presigned S3 URL for download
-        download_url = package.get("data", {}).get("download_url")
-        if not download_url and package.get("s3_key"):
-            download_url = storage.generate_presigned_url(package.get("s3_key"))
         
         response = {
             "metadata": {
@@ -594,7 +591,7 @@ def get_artifact(artifact_type: str, id: str):
             },
             "data": {
                 "url": package.get("data", {}).get("url", ""),
-                "download_url": download_url or ""
+                "download_url": package.get("data", {}).get("download_url", "")
             }
         }
         
