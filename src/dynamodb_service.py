@@ -6,6 +6,7 @@ DynamoDB Service for Package Registry
 
 import boto3
 import os
+import re
 import logging
 from pathlib import Path
 from typing import Optional, Dict, List, Any
@@ -136,6 +137,7 @@ class DynamoDBService:
                 },
                 "created_at": timestamp,
                 "is_deleted": False
+                "readme": "Package readme text"
             }
             
         Returns:
@@ -143,7 +145,7 @@ class DynamoDBService:
         """
         # timestamp = datetime.now(timezone.utc).isoformat()
         item = package_data.copy()
-        item['id'] = package_data['metadata']['id']
+        # item['id'] = package_data['metadata']['id']
         self.logger.info(f"Creating package with ID: {item.get('metadata').get('id')}") # type: ignore
         
         try:
@@ -379,54 +381,34 @@ class DynamoDBService:
             return [self._convert_decimals_to_float(item) for item in obj]
         return obj
 
-    def init_db(self):
-        """Initialize database - creates tables and default admin user"""
-        # db_service = get_dynamodb_service()
+    def search_packages_by_regex(self, pattern: str, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        Search packages by regex pattern on metadata-name field OR readme field.
         
-        # try:
-            # create tables if they don't exist
-            # self.create_tables() # THEY ALREADY EXIST
+        Args:
+            pattern: Regular expression pattern to match package names
+            limit: Maximum number of results to return
             
-            # create the autograder's expected default admin user
-            # import bcrypt
-            # autograder_admin_username = "ece30861defaultadminuser"
-            # autograder_admin_password = "correcthorsebatterystaple123(!__+@**(A'\"`;DROP TABLE artifacts;"
+        Returns:
+            List of matching packages
+        """        
+        try:
+            regex = re.compile(pattern)
+        except re.error as e:
+            self.logger.error(f"Invalid regex pattern: {e}")
+            return []
+        
+        try:
+            response = self.packages_table.scan()
+            items = []
+            for item in response.get('Items', []):
+                name = item.get('name', '')
+                if regex.search(name) and not item.get('is_deleted', False):
+                    items.append(self._convert_decimals_to_float(item))
+                    if len(items) >= limit:
+                        break
+            return items
             
-            # existing_admin = self.get_user(autograder_admin_username)
-            
-            # if not existing_admin:
-            #     password_hash = bcrypt.hashpw(autograder_admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                
-            #     admin_user = self.create_user({
-            #         'username': autograder_admin_username,
-            #         'password_hash': password_hash,
-            #         'role': UserRole.ADMIN.value,
-            #         'is_active': True,
-            #         'created_at': datetime.now(timezone.utc).isoformat()
-            #     })
-                
-            #     self.logger.info(f"✓ Created default admin user: {admin_user['username']}")
-            #     print(f"✓ Created default admin user in DynamoDB: {admin_user['username']}")
-            # else:
-            #     # Verify password is correct
-            #     stored_hash = existing_admin.get('password_hash', '')
-            #     if bcrypt.checkpw(autograder_admin_password.encode('utf-8'), stored_hash.encode('utf-8')):
-            #         self.logger.info(f"✓ Default admin user exists with correct password: {autograder_admin_username}")
-            #         print(f"✓ Default admin user exists in DynamoDB: {autograder_admin_username}")
-            #     else:
-            #         # Update password hash if incorrect
-            #         password_hash = bcrypt.hashpw(autograder_admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            #         self.update_user(autograder_admin_username, {'password_hash': password_hash})
-            #         self.logger.warning(f"⚠ Updated default admin password: {autograder_admin_username}")
-            #         print(f"⚠ Updated default admin password in DynamoDB: {autograder_admin_username}")
-        # except Exception as e:
-        #     self.logger.error(f"✗ Error initializing DynamoDB: {e}", exc_info=True)
-        #     print(f"✗ Error initializing DynamoDB: {e}")
-        #     raise  # Re-raise to prevent app from starting if init fails
-
-# if __name__ == '__main__':
-#     # for testing
-#     logging.basicConfig(level=logging.INFO)
-#     print("Initializing DynamoDB...")
-#     init_db()
-#     print("DynamoDB initialized successfully!")
+        except ClientError as e:
+            self.logger.error(f"Error searching packages by regex: {e}")
+            return []
