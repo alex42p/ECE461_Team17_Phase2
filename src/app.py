@@ -439,7 +439,8 @@ def upload_artifact(artifact_type: str):
             dynamodb_package['name'] = package_info['metadata']['name']
             dynamodb_package['artifact_type'] = package_info['metadata']['type']
             dynamodb_package['readme'] = hf_metadata.get('readme_text') if artifact_type == 'model' else "No readme available"
-            
+            dynamodb_package['cost'] = hf_metadata.get('size_mb', 0) / 10 if artifact_type == 'model' else 100 # hardcode some non-zero value lol
+
             logger.info(f"Saving to DynamoDB: {dynamodb_package.items()}")
             logger.debug(f"Scores being saved: {list(scores.keys())}")
             
@@ -509,6 +510,26 @@ def return_model_rate(id: str):
         logger.exception(f'Error in /rate: {e}')
         return jsonify({"error": "Could not find artifact"}), 404
     
+@app.route('/artifact/<artifact_type>/<id>/cost', methods=['GET'])
+def get_artifact_cost(artifact_type: str, id: str):
+    """
+    Get the cost of an artifact by ID.
+
+    Returns the cost of the artifact in USD.
+    """
+    try:
+        # Get package from DynamoDB
+        package = dynamodb_service.get_package(id)
+        if not package:
+            return jsonify({"error": "Artifact not found"}), 404
+
+        cost = package['cost'] if package else 100.0
+
+        return jsonify({package['id']: {"total_cost": cost}}), 200
+
+    except Exception as e:
+        logger.exception(f'Error in get_artifact_cost: {e}')
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/artifact/byName/<name>', methods=['GET'])
 def get_artifact_by_name(name: str):
