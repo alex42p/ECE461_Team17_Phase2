@@ -407,6 +407,10 @@ class DynamoDBService:
                     items.append(self._convert_decimals_to_float(item))
                     if len(items) >= limit:
                         break
+                elif regex.search(item.get('readme', '')) and not item.get('is_deleted', False):
+                    items.append(self._convert_decimals_to_float(item))
+                    if len(items) >= limit:
+                        break
             return items
             
         except ClientError as e:

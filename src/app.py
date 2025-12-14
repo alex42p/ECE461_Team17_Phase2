@@ -297,17 +297,6 @@ def search_by_regex():
     
     """
     try:
-        # logger.info('Search by regex called by %s', request.remote_addr)
-        # regex_pattern = request.args.get('RegEx')
-
-        # if not regex_pattern:
-        #     logger.warning('search_by_regex missing RegEx parameter')
-        #     return jsonify({"error": "RegEx parameter is required"}), 400
-
-        # logger.debug('Searching packages with pattern: %s', regex_pattern)
-        # # Search packages
-        # results = storage.search_by_regex(regex_pattern)
-
         # Search packages from DynamoDB
         data = request.get_json()
         regex_pattern = data.get("regex") if data else None
@@ -318,19 +307,18 @@ def search_by_regex():
         
         matching_packages = dynamodb_service.search_packages_by_regex(regex_pattern)
         # return a list of matching packages' metadata dicts
-
-
+        
+        # return only the metadata fields from package
+        return_list = []
+        for pkg in matching_packages:
+            return_list.append({
+                "id": pkg.get("metadata", {}).get("id", ""),
+                "name": pkg.get("metadata", {}).get("name", ""),
+                "type": pkg.get("metadata", {}).get("type", "")
+            })
 
         # change later
-        return jsonify(matching_packages), 200
-
-        # logger.info('search_by_regex found %s results', len(results))
-        # return jsonify({
-        #     "success": True,
-        #     "count": len(results),
-        #     "regex_pattern": regex_pattern,
-        #     "packages": results
-        # }), 200
+        return jsonify(return_list), 200
 
     except ValueError as e:
         logger.exception('ValueError in search_by_regex')
@@ -678,47 +666,40 @@ def lineage_check(id: str):
 @app.route('/artifacts', methods=['POST'])
 def query_artifacts():
     """
-    Query artifacts with filters (requires authentication).
-    
-    Supports two formats:
-    1. OpenAPI spec format (array of queries): [{"name": "test"}, ...]
-    2. Legacy format (object): {"ArtifactQuery": {...}} or just {}
-    
-    Returns array format if OpenAPI format received, object format otherwise.
+    Get any artifacts fitting the query. Search for artifacts satisfying the indicated query.
+    If you want to enumerate all artifacts, provide an array with a single artifact_query whose name is "*".
+    The response is paginated; the response header includes the offset to use in the next query.
+    Parameters:
+    - offset (int, optional): Provide this for pagination. If not provided, returns the first page of results.
+    Request body:
+    [
+        {
+            "name": "string",
+            "types": [
+            "model"
+            ]
+        }
+    ]
+    Response body:
+    [
+        {
+            "name": "audience-classifier",
+            "id": 3847247294,
+            "type": "model"
+        },
+        ...
+    ]
     """
     try:
-        data = request.get_json()
+        data = request.get_json() # list of dicts
         offset = int(request.args.get('offset', 0))
-        limit = min(int(request.args.get('limit', 100)), 100)
-        
-        # Determine format and extract queries
-        use_openapi_format = isinstance(data, list)
-        queries = []
-        
-        if use_openapi_format:
-            # OpenAPI format: array of ArtifactQuery objects
-            queries = data if data else []
-        elif isinstance(data, dict):
-            # Legacy format: object with optional ArtifactQuery key
-            query = data.get("ArtifactQuery") or data
-            # Convert single query to list for uniform processing
-            if query and query != data:  # Has ArtifactQuery key
-                queries = [query]
-            elif not data or data == {}:  # Empty object means "all"
-                queries = [{"name": "*"}]  # Wildcard to get all
-            else:
-                queries = [data]
-        else:
-            # Default to empty query (return all)
-            queries = [{"name": "*"}]
 
-        # QUERY FROM DYNAMODB INSTEAD OF LOCAL FILES
-        logger.debug('Query artifacts: format=%s, queries=%d', 
-                    'OpenAPI' if use_openapi_format else 'legacy', len(queries))
+        # logger.debug(f'Querying artifacts with data: {data} and offset: {offset}')
         
+
         # Get all packages from DynamoDB
         all_packages = dynamodb_service.get_all_packages()
-        
+
         results = []
         for package in all_packages:
             # Skip deleted packages
@@ -727,8 +708,8 @@ def query_artifacts():
             
             # Check if package matches ANY query
             matches = False
-            for query in queries:
-                name_pattern = query.get("name", "*")
+            for query in data:
+                name_pattern = query.get("name", "")
                 type_filters = query.get("types", [])
                 
                 # Get package name from metadata
@@ -747,52 +728,15 @@ def query_artifacts():
                     break
             
             if matches:
-                # Format response according to expected structure
-                result = {
-                    "metadata": {
-                        "id": package.get("metadata", {}).get("id", ""),
-                        "name": package.get("metadata", {}).get("name", ""),
-                        "type": package.get("metadata", {}).get("type", "")
-                    },
-                    "data": {
-                        "url": package.get("data", {}).get("url", ""),
-                        "download_url": package.get("data", {}).get("download_url", "")
-                    }
-                }
-                
-                # Generate presigned URL if needed
-                if not result["data"]["download_url"] and package.get("s3_key"):
-                    result["data"]["download_url"] = storage.generate_presigned_url(package["s3_key"])
-                
-                results.append(result)
-        
-        # Sort by created_at (newest first)
-        if results:
-            results.sort(
-                key=lambda x: next(
-                    (p.get("created_at", "") for p in all_packages 
-                     if p.get("metadata", {}).get("id") == x["metadata"]["id"]), 
-                    ""
-                ),
-                reverse=True
-            )
-        
-        # Paginate
-        paginated_results = results[offset:offset + limit]
+                results.append({
+                    "id": package.get("metadata", {}).get("id", ""),
+                    "name": package.get("metadata", {}).get("name", ""),
+                    "type": package.get("metadata", {}).get("type", "")
+                })
         
         # Return appropriate format
-        if use_openapi_format:
-            return jsonify(paginated_results), 200
-        else:
-            return jsonify({
-                "success": True,
-                "count": len(paginated_results),
-                "total": len(results),
-                "offset": offset,
-                "limit": limit,
-                "artifacts": paginated_results
-            }), 200
-            
+        return jsonify(results), 200
+        
     except Exception as e:
         logger.exception('Error in query_artifacts')
         return jsonify({"error": str(e)}), 500
