@@ -683,9 +683,6 @@ def query_artifacts():
         data = request.get_json() # list of dicts
         offset = request.args.get('offset')
 
-        # logger.debug(f'Querying artifacts with data: {data} and offset: {offset}')
-        
-
         # Get all packages from DynamoDB
         all_packages = dynamodb_service.get_all_packages()
 
@@ -741,7 +738,7 @@ def query_artifacts():
 
 
 @app.route('/reset', methods=['DELETE'])
-def reset_system(): # TODO: make sure this works properly
+def reset_system(): 
     """
     Reset system to initial state (admin only).
     Clears all packages and resets database.

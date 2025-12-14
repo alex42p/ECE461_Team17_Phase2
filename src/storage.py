@@ -58,39 +58,23 @@ class S3Storage:
             fh.setFormatter(fmt)
             self.logger.addHandler(fh)
 
-        # Always resolve to absolute path to avoid working directory issues
-        # # Convert to Path if it's a string, then resolve to absolute
-        # if isinstance(storage_dir, str):
-        #     self.storage_dir = Path(storage_dir).resolve()
-        # else:
-        #     self.storage_dir = Path(storage_dir).resolve()
-        # self.metadata_dir = (self.storage_dir / "metadata").resolve()
-
         # create S3 client
         self.s3_client = boto3.client(
             's3', 
-            aws_access_key_id=aws_access_key,
-            aws_secret_access_key=aws_secret_key,
+            # aws_access_key_id=aws_access_key,
+            # aws_secret_access_key=aws_secret_key,
             region_name=aws_region,
         )
         self.bucket_name = bucket_name
         self.hf_token = hf_token
-
         if self.s3_client:
             self.logger.info("Created S3 client for region %s with bucket %s", aws_region, bucket_name)
-        
-        # Create directories if they don't exist
-        # self.metadata_dir.mkdir(parents=True, exist_ok=True)
-
         self.logger.info("Initialized S3Storage")
-    
     
     def generate_package_id(self, name: str) -> str:
         """Generate unique package ID."""
         # sanitize name to avoid path separators in filenames
         safe_name = name.replace('/', '_').replace('\\', '_')
-        # unique_str = f"{safe_name}-{datetime.now(timezone.utc).isoformat()}"
-        # hash_suffix = hashlib.md5(unique_str.encode()).hexdigest()[:16]
         pkg_id = hashlib.md5(safe_name.encode()).hexdigest()[:16]
         return pkg_id
     
@@ -193,17 +177,6 @@ class S3Storage:
             RuntimeError: If git operations fail
             subprocess.TimeoutExpired: If clone takes too long
         """
-        # if artifact_type == 'code':
-        #     repo_url = "https://github.com/"
-        # if not self.hf_token:
-        #     repo_url = f"https://huggingface.co/{model_id}"
-        # elif artifact_type != "dataset":
-        #     repo_url = f"https://hf:{self.hf_token}@huggingface.co/{model_id}"
-        # else:
-        #     repo_url = f"https://hf:{self.hf_token}@huggingface.co/datasets/{model_id}"
-
-        # if artifact_type == 'code':
-        #     repo_url = url
         if self.hf_token and artifact_type == "model":
             repo_url = f"https://hf:{self.hf_token}@huggingface.co/{model_id}"
         elif self.hf_token and artifact_type == "dataset":
@@ -337,97 +310,6 @@ class S3Storage:
         except Exception as e:
             self.logger.exception(f"Error generating presigned URL: {e}")
             return None
-
-    # REMOVE LATER - replaced by streaming upload above
-    def upload_file_to_s3(self, filename: str, s3_key: str) -> str:
-        """
-        Upload a local file to S3 and return the S3 URI (s3://bucket/key).
-        """
-        if not self.bucket_name:
-            raise ValueError("S3 bucket name is not configured (S3_BUCKET_NAME).")
-        file_path = Path("./cache" + filename)
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"File not found: {filename}")
-
-        try:
-            self.logger.debug("upload_file_to_s3: uploading %s to %s/%s", file_path, self.bucket_name, s3_key)
-            # boto3 will stream from disk; this requires valid AWS credentials and permissions
-            self.s3_client.upload_file(str(file_path), self.bucket_name, s3_key)
-            s3_uri = f"s3://{self.bucket_name}/{s3_key}"
-            self.logger.info("upload_file_to_s3: uploaded to %s", s3_uri)
-            return s3_uri
-        except Exception as e:
-            self.logger.exception("upload_file_to_s3: failed to upload %s to s3://%s/%s: %s", file_path, self.bucket_name, s3_key, e)
-            raise
-    
-    def get_packages_by_name(self, name: str) -> List[Dict[str, Any]]:
-        """
-        Get all packages with exact name match.
-        
-        Args:
-            name: Exact package name to search for
-        
-        Returns:
-            List of packages with matching name (excluding deleted)
-        """
-        results = []
-        # for metadata_file in self.metadata_dir.glob("*.json"):
-        #     try:
-        #         with open(metadata_file, "r") as f:
-        #             package_data = json.load(f)
-        #             if package_data.get("name") == name and not package_data.get("is_deleted", False):
-        #                 results.append(package_data)
-        #     except Exception as e:
-        #         self.logger.warning("get_packages_by_name: error reading %s: %s", metadata_file.name, e)
-        #         continue
-        
-        # Sort by created_at (newest first)
-        results.sort(
-            key=lambda x: x.get("created_at", ""),
-            reverse=True
-        )
-        return results
-    
-    def query_packages(self, artifact_type: Optional[str] = None, name_filter: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
-        """
-        Query packages with optional filters.
-        
-        Args:
-            artifact_type: Filter by artifact type (model, dataset, code)
-            name_filter: Filter by name (partial match)
-            limit: Maximum number of results
-        
-        Returns:
-            List of matching packages (excluding deleted)
-        """
-        results = []
-        # for metadata_file in self.metadata_dir.glob("*.json"):
-        #     try:
-        #         with open(metadata_file, "r") as f:
-        #             package_data = json.load(f)
-                    
-        #             # Skip deleted artifacts
-        #             if package_data.get("is_deleted", False):
-        #                 continue
-                    
-        #             # Apply filters
-        #             if artifact_type and package_data.get("artifact_type") != artifact_type:
-        #                 continue
-        #             if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
-        #                 continue
-                    
-        #             results.append(package_data)
-        #     except Exception as e:
-        #         self.logger.warning("query_packages: error reading %s: %s", metadata_file.name, e)
-        #         continue
-        
-        # Sort by created_at (newest first)
-        results.sort(
-            key=lambda x: x.get("created_at", ""),
-            reverse=True
-        )
-        
-        return results[:limit]
     
     def generate_presigned_url(self, s3_key: Optional[str], expiration: int = 3600) -> Optional[str]:
         """
