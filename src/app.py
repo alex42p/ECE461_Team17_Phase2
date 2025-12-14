@@ -699,12 +699,17 @@ def query_artifacts():
                 name_pattern = query.get("name", "")
                 type_filters = query.get("types", [])
                 
+                # Wildcard match
+                if name_pattern == '*' and not type_filters:
+                    matches = True
+                    break
+
                 # Get package name from metadata
                 pkg_name = package.get("metadata", {}).get("name", "")
                 pkg_type = package.get("metadata", {}).get("type", "")
                 
                 # Name matching 
-                name_match = (name_pattern == "*" or name_pattern.lower() in pkg_name.lower())
+                name_match = (name_pattern.lower() in pkg_name.lower()) # name_pattern == "*" or 
                 
                 # Type filtering
                 type_match = (not type_filters or pkg_type in type_filters)
