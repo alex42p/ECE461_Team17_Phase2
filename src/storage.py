@@ -335,7 +335,7 @@ class S3Storage:
             self.logger.debug(f"Generated presigned URL for {s3_key}: {url}")
             return url
         except Exception as e:
-            self.logger.error(f"Error generating presigned URL: {e}")
+            self.logger.exception(f"Error generating presigned URL: {e}")
             return None
 
     # REMOVE LATER - replaced by streaming upload above

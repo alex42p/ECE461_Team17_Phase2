@@ -121,9 +121,9 @@ storage = S3Storage(str(storage_dir_absolute), AWS_ACCESS_KEY, AWS_SECRET_KEY, A
 # Initialize DynamoDB service 
 dynamodb_service = DynamoDBService(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION)
 
-# Initialize database on startup
-with app.app_context():
-    dynamodb_service.init_db() # TODO: make sure this works and doesn't fucking kill everything
+# # Initialize database on startup
+# with app.app_context():
+#     dynamodb_service.init_db() # TODO: make sure this works and doesn't fucking kill everything
 
 def convert_floats_to_decimals(obj):
     """
@@ -279,29 +279,58 @@ def get_tracks():
 def search_by_regex():
     """
     Search packages by regex pattern
+    Request body:
+    {
+        "regex": pattern-string (e.g. ".*?(audience|bert).*")
+    }
+    Response body:
+    {
+        [
+            {
+                "name": str,
+                "type": str,
+                "id": str
+            }, 
+            ...
+        ]
+    }
     
-    Query parameter:
-        RegEx: Regular expression pattern to match package names
     """
     try:
-        logger.info('Search by regex called by %s', request.remote_addr)
-        regex_pattern = request.args.get('RegEx')
+        # logger.info('Search by regex called by %s', request.remote_addr)
+        # regex_pattern = request.args.get('RegEx')
 
+        # if not regex_pattern:
+        #     logger.warning('search_by_regex missing RegEx parameter')
+        #     return jsonify({"error": "RegEx parameter is required"}), 400
+
+        # logger.debug('Searching packages with pattern: %s', regex_pattern)
+        # # Search packages
+        # results = storage.search_by_regex(regex_pattern)
+
+        # Search packages from DynamoDB
+        data = request.get_json()
+        regex_pattern = data.get("regex") if data else None
         if not regex_pattern:
-            logger.warning('search_by_regex missing RegEx parameter')
-            return jsonify({"error": "RegEx parameter is required"}), 400
+            logger.warning('search_by_regex missing regex in request body')
+            return jsonify({"error": "regex field is required in request body"}), 400
+        logger.debug('Searching packages in DynamoDB with pattern: %s', regex_pattern)
+        
+        matching_packages = dynamodb_service.search_packages_by_regex(regex_pattern)
+        # return a list of matching packages' metadata dicts
 
-        logger.debug('Searching packages with pattern: %s', regex_pattern)
-        # Search packages
-        results = storage.search_by_regex(regex_pattern)
 
-        logger.info('search_by_regex found %s results', len(results))
-        return jsonify({
-            "success": True,
-            "count": len(results),
-            "regex_pattern": regex_pattern,
-            "packages": results
-        }), 200
+
+        # change later
+        return jsonify(matching_packages), 200
+
+        # logger.info('search_by_regex found %s results', len(results))
+        # return jsonify({
+        #     "success": True,
+        #     "count": len(results),
+        #     "regex_pattern": regex_pattern,
+        #     "packages": results
+        # }), 200
 
     except ValueError as e:
         logger.exception('ValueError in search_by_regex')
@@ -423,8 +452,9 @@ def upload_artifact(artifact_type: str):
             dynamodb_package['id'] = package_info['metadata']['id']  # PRIMARY KEY
             dynamodb_package['name'] = package_info['metadata']['name']
             dynamodb_package['artifact_type'] = package_info['metadata']['type']
+            dynamodb_package['readme'] = hf_metadata.get('readme_text') if artifact_type == 'model' else "No readme available"
             
-            logger.info(f"Saving to DynamoDB: {dynamodb_package.keys()}")
+            logger.info(f"Saving to DynamoDB: {dynamodb_package.items()}")
             logger.debug(f"Scores being saved: {list(scores.keys())}")
             
             saved_to_db = dynamodb_service.create_package(dynamodb_package)
