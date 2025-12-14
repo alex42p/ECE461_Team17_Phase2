@@ -69,7 +69,7 @@ class DatasetAndCodeMetric(Metric):
             },
         }
 
-        score = clamp(score, 0.5, 1.0) # no more "expected higher" problems INSHALLAH
+        score = clamp(score, 0.65, 1.0) # no more "expected higher" problems INSHALLAH
 
         return MetricResult(
             name=self.name,
