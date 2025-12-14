@@ -138,6 +138,7 @@ class DynamoDBService:
                 "created_at": timestamp,
                 "is_deleted": False
                 "readme": "Package readme text"
+                "cost": 
             }
             
         Returns:
@@ -145,7 +146,7 @@ class DynamoDBService:
         """
         # timestamp = datetime.now(timezone.utc).isoformat()
         item = package_data.copy()
-        # item['id'] = package_data['metadata']['id']
+        item['cost'] = self._convert_floats_to_decimal(item.get('cost', {}))
         self.logger.info(f"Creating package with ID: {item.get('metadata').get('id')}") # type: ignore
         
         try:
