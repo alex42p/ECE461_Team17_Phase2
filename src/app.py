@@ -528,31 +528,20 @@ def get_artifact_by_name(name: str):
         for pkg in all_packages:
             pkg_name = pkg.get("metadata", {}).get("name", "")
             if pkg_name.lower() == name.lower() and not pkg.get("is_deleted", False):
-                # Generate presigned URL
-                download_url = pkg.get("data", {}).get("download_url")
-                if not download_url and pkg.get("s3_key"):
-                    download_url = storage.generate_presigned_url(pkg.get("s3_key"))
-                
                 matching_packages.append({
-                    "metadata": {
                         "id": pkg.get("metadata", {}).get("id", ""),
                         "name": pkg.get("metadata", {}).get("name", ""),
                         "type": pkg.get("metadata", {}).get("type", "")
-                    },
-                    "data": {
-                        "url": pkg.get("data", {}).get("url", ""),
-                        "download_url": download_url or ""
-                    }
                 })
         
         if not matching_packages:
             return jsonify({"error": "No artifacts found with that name"}), 404
         
-        # Sort by created_at (newest first)
-        matching_packages.sort(
-            key=lambda x: all_packages[[p for p in all_packages if p.get("metadata", {}).get("id") == x["metadata"]["id"]][0]].get("created_at", ""),
-            reverse=True
-        )
+        # # Sort by created_at (newest first)
+        # matching_packages.sort(
+        #     key=lambda x: all_packages[[p for p in all_packages if p.get("metadata", {}).get("id") == x["metadata"]["id"]][0]].get("created_at", ""),
+        #     reverse=True
+        # )
         
         logger.info(f"Found {len(matching_packages)} artifacts with name {name}")
         return jsonify(matching_packages), 200
@@ -711,7 +700,7 @@ def query_artifacts():
                 type_filters = query.get("types", [])
 
                 # Wildcard match
-                if name_pattern == "*" or "*" in type_filters:
+                if name_pattern == "*":
                     matches = True
                     break
                 
