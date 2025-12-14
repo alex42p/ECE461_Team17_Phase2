@@ -740,31 +740,7 @@ def query_artifacts():
     except Exception as e:
         logger.exception('Error in query_artifacts')
         return jsonify({"error": str(e)}), 500
-        
-        
-    #     # Sort by created_at (newest first)
-    #     if results:
-    #         results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-    #     paginated_results = results[offset:offset + limit]
-        
-    #     # Return appropriate format
-    #     if use_openapi_format:
-    #         # OpenAPI format: return array of artifacts
-    #         return jsonify(paginated_results), 200
-    #     else:
-    #         # Legacy format: return object with metadata
-    #         return jsonify({
-    #             "success": True,
-    #             "count": len(paginated_results),
-    #             "total": len(results),
-    #             "offset": offset,
-    #             "limit": limit,
-    #             "artifacts": paginated_results
-    #         }), 200
-            
-    # except Exception as e:
-    #     logger.exception('Error in query_artifacts')
-    #     return jsonify({"error": str(e)}), 500
+
 
 @app.route('/reset', methods=['DELETE'])
 def reset_system(): # TODO: make sure this works properly
@@ -916,4 +892,4 @@ def run_scoring(url: str) -> Dict[str, Any]:
 if __name__ == '__main__':
     logger.info('Starting ECE461 Team 17 - Package Registry API')
     logger.info('Listening on http://127.0.0.1:8080')
-    app.run(host='127.0.0.1', port=8080, debug=True)
+    app.run(host='127.0.0.1', port=8080, debug=False)
