@@ -59,12 +59,12 @@ class S3Storage:
             self.logger.addHandler(fh)
 
         # Always resolve to absolute path to avoid working directory issues
-        # Convert to Path if it's a string, then resolve to absolute
-        if isinstance(storage_dir, str):
-            self.storage_dir = Path(storage_dir).resolve()
-        else:
-            self.storage_dir = Path(storage_dir).resolve()
-        self.metadata_dir = (self.storage_dir / "metadata").resolve()
+        # # Convert to Path if it's a string, then resolve to absolute
+        # if isinstance(storage_dir, str):
+        #     self.storage_dir = Path(storage_dir).resolve()
+        # else:
+        #     self.storage_dir = Path(storage_dir).resolve()
+        # self.metadata_dir = (self.storage_dir / "metadata").resolve()
 
         # create S3 client
         self.s3_client = boto3.client(
@@ -360,36 +360,36 @@ class S3Storage:
             self.logger.exception("upload_file_to_s3: failed to upload %s to s3://%s/%s: %s", file_path, self.bucket_name, s3_key, e)
             raise
     
-    # REMOVE LATER - NEED TO REDESIGN
-    def get_package(self, package_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Retrieve package by ID.
+    # # REMOVE LATER - NEED TO REDESIGN
+    # def get_package(self, package_id: str) -> Optional[Dict[str, Any]]:
+    #     """
+    #     Retrieve package by ID.
         
-        Returns:
-            Package data or None if not found or deleted
-        """
-        metadata_file = self.metadata_dir / f"{package_id}.json"
-        try:
-            self.logger.debug("get_package: lookup %s", metadata_file.name)
-        except Exception:
-            pass
+    #     Returns:
+    #         Package data or None if not found or deleted
+    #     """
+    #     metadata_file = self.metadata_dir / f"{package_id}.json"
+    #     try:
+    #         self.logger.debug("get_package: lookup %s", metadata_file.name)
+    #     except Exception:
+    #         pass
 
-        if not metadata_file.exists():
-            self.logger.info("get_package: package %s not found", package_id)
-            return None
+    #     if not metadata_file.exists():
+    #         self.logger.info("get_package: package %s not found", package_id)
+    #         return None
 
-        try:
-            with open(metadata_file, "r") as f:
-                data = json.load(f)
-                # Filter out deleted artifacts
-                if data.get("is_deleted", False):
-                    self.logger.info("get_package: package %s is deleted", package_id)
-                    return None
-                self.logger.debug("get_package: loaded %s", metadata_file.name)
-                return data
-        except Exception as e:
-            self.logger.exception("get_package: failed to read %s: %s", metadata_file.name, e)
-            return None
+    #     try:
+    #         with open(metadata_file, "r") as f:
+    #             data = json.load(f)
+    #             # Filter out deleted artifacts
+    #             if data.get("is_deleted", False):
+    #                 self.logger.info("get_package: package %s is deleted", package_id)
+    #                 return None
+    #             self.logger.debug("get_package: loaded %s", metadata_file.name)
+    #             return data
+    #     except Exception as e:
+    #         self.logger.exception("get_package: failed to read %s: %s", metadata_file.name, e)
+    #         return None
     
     # REDESIGN TO ACCESS DYNAMO LATER
     def search_by_regex(self, regex_pattern: str) -> List[Dict[str, Any]]:
@@ -417,23 +417,23 @@ class S3Storage:
 
         results = []
 
-        # Scan all package metadata files
-        for metadata_file in self.metadata_dir.glob("*.json"):
-            try:
-                with open(metadata_file, "r") as f:
-                    package_data = json.load(f)
+        # # Scan all package metadata files
+        # for metadata_file in self.metadata_dir.glob("*.json"):
+        #     try:
+        #         with open(metadata_file, "r") as f:
+        #             package_data = json.load(f)
 
-                # Skip deleted artifacts
-                if package_data.get("is_deleted", False):
-                    continue
+        #         # Skip deleted artifacts
+        #         if package_data.get("is_deleted", False):
+        #             continue
 
-                # Check if name matches pattern
-                if pattern.search(package_data.get("name", "")):
-                    results.append(package_data)
+        #         # Check if name matches pattern
+        #         if pattern.search(package_data.get("name", "")):
+        #             results.append(package_data)
 
-            except Exception as e:
-                self.logger.warning("search_by_regex: error reading %s: %s", metadata_file.name, e)
-                continue
+        #     except Exception as e:
+        #         self.logger.warning("search_by_regex: error reading %s: %s", metadata_file.name, e)
+        #         continue
 
         # Sort by net score (highest first)
         results.sort(
@@ -455,15 +455,15 @@ class S3Storage:
             List of packages with matching name (excluding deleted)
         """
         results = []
-        for metadata_file in self.metadata_dir.glob("*.json"):
-            try:
-                with open(metadata_file, "r") as f:
-                    package_data = json.load(f)
-                    if package_data.get("name") == name and not package_data.get("is_deleted", False):
-                        results.append(package_data)
-            except Exception as e:
-                self.logger.warning("get_packages_by_name: error reading %s: %s", metadata_file.name, e)
-                continue
+        # for metadata_file in self.metadata_dir.glob("*.json"):
+        #     try:
+        #         with open(metadata_file, "r") as f:
+        #             package_data = json.load(f)
+        #             if package_data.get("name") == name and not package_data.get("is_deleted", False):
+        #                 results.append(package_data)
+        #     except Exception as e:
+        #         self.logger.warning("get_packages_by_name: error reading %s: %s", metadata_file.name, e)
+        #         continue
         
         # Sort by created_at (newest first)
         results.sort(
@@ -485,25 +485,25 @@ class S3Storage:
             List of matching packages (excluding deleted)
         """
         results = []
-        for metadata_file in self.metadata_dir.glob("*.json"):
-            try:
-                with open(metadata_file, "r") as f:
-                    package_data = json.load(f)
+        # for metadata_file in self.metadata_dir.glob("*.json"):
+        #     try:
+        #         with open(metadata_file, "r") as f:
+        #             package_data = json.load(f)
                     
-                    # Skip deleted artifacts
-                    if package_data.get("is_deleted", False):
-                        continue
+        #             # Skip deleted artifacts
+        #             if package_data.get("is_deleted", False):
+        #                 continue
                     
-                    # Apply filters
-                    if artifact_type and package_data.get("artifact_type") != artifact_type:
-                        continue
-                    if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
-                        continue
+        #             # Apply filters
+        #             if artifact_type and package_data.get("artifact_type") != artifact_type:
+        #                 continue
+        #             if name_filter and name_filter.lower() not in package_data.get("name", "").lower():
+        #                 continue
                     
-                    results.append(package_data)
-            except Exception as e:
-                self.logger.warning("query_packages: error reading %s: %s", metadata_file.name, e)
-                continue
+        #             results.append(package_data)
+        #     except Exception as e:
+        #         self.logger.warning("query_packages: error reading %s: %s", metadata_file.name, e)
+        #         continue
         
         # Sort by created_at (newest first)
         results.sort(

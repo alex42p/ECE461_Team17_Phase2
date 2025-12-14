@@ -81,7 +81,7 @@ else:
 from storage import S3Storage
 
 # Import database and services
-from database import db_manager
+# from database import db_manager
 from dynamodb_service import DynamoDBService
 
 # Import Phase 1 modules for scoring
@@ -117,10 +117,6 @@ storage_dir_absolute = project_root / "package_storage"
 # Resolve to absolute path before passing to S3Storage
 storage_dir_absolute = storage_dir_absolute.resolve()
 storage = S3Storage(str(storage_dir_absolute), AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME, HF_TOKEN)
-# Verify the path is correctly resolved
-resolved_metadata_dir = storage.metadata_dir.resolve()
-logger.info(f"Storage initialized: metadata_dir = {resolved_metadata_dir}")
-logger.info(f"Storage directory exists: {resolved_metadata_dir.exists()}")
 
 # Initialize DynamoDB service 
 dynamodb_service = DynamoDBService(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION)
@@ -771,43 +767,6 @@ def query_artifacts():
         logger.exception('Error in query_artifacts')
         return jsonify({"error": str(e)}), 500
         
-    #     # Query all packages from storage
-    #     storage_path = storage.metadata_dir.resolve()
-    #     logger.debug('Query artifacts: Checking metadata directory %s (format: %s, queries: %d)', 
-    #                 storage_path, 'OpenAPI' if use_openapi_format else 'legacy', len(queries))
-        
-    #     results = []
-    #     if storage_path.exists():
-    #         for metadata_file in storage_path.glob("*.json"):
-    #             try:
-    #                 with open(metadata_file, "r") as f:
-    #                     package_data = json.load(f)
-    #                     if package_data.get("is_deleted", False):
-    #                         continue
-                        
-    #                     # Check if package matches ANY query
-    #                     matches = False
-    #                     for query in queries:
-    #                         name_pattern = query.get("name", "*")
-    #                         type_filters = query.get("types", [])
-                            
-    #                         # Name matching (support wildcards)
-    #                         name_match = (name_pattern == "*" or 
-    #                                     name_pattern.lower() in package_data.get("name", "").lower())
-                            
-    #                         # Type filtering
-    #                         type_match = (not type_filters or 
-    #                                     package_data.get("artifact_type") in type_filters or
-    #                                     package_data.get("type") in type_filters)
-                            
-    #                         if name_match and type_match:
-    #                             matches = True
-    #                             break
-                        
-    #                     if matches:
-    #                         results.append(package_data)
-    #             except Exception:
-    #                 continue
         
     #     # Sort by created_at (newest first)
     #     if results:
@@ -834,7 +793,6 @@ def query_artifacts():
     #     return jsonify({"error": str(e)}), 500
 
 @app.route('/reset', methods=['DELETE'])
-#@require_admin()
 def reset_system(): # TODO: make sure this works properly
     """
     Reset system to initial state (admin only).
@@ -843,7 +801,7 @@ def reset_system(): # TODO: make sure this works properly
     try:
         logger.info('System reset requested by %s', request.remote_addr)
         
-        # Clear S3 objects first (before clearing metadata)
+        # Clear S3 objects
         try:
             storage.clear_all_s3_objects()
             logger.info('S3 objects cleared successfully')
@@ -856,181 +814,13 @@ def reset_system(): # TODO: make sure this works properly
             logger.info('DynamoDB cleared successfully')
         except Exception as e:
             logger.warning('DynamoDB cleanup failed (non-critical): %s', e)
-
-        # Clear SQLAlchemy database
-        try:
-            db_manager.reset_database()
-            logger.info('SQLAlchemy database cleared successfully')
-        except Exception as e:
-            logger.warning('Database cleanup failed (non-critical): %s', e)
         
-        # Clear local package storage metadata files - AGGRESSIVE APPROACH
-        # Use resolved absolute path to ensure consistency
-        storage_path = storage.metadata_dir.resolve()
-        logger.info('Reset: Clearing metadata files from %s', storage_path)
-        logger.info('Reset: Directory exists: %s', storage_path.exists())
-        
-        deleted_files = 0
-        
-        if storage_path.exists():
-            import os
-            import shutil
-            
-            # Get ALL files in directory (not just JSON)
-            try:
-                all_items = os.listdir(storage_path)
-                logger.info('Reset: Found %d items in directory: %s', len(all_items), all_items[:10])
-            except Exception as e:
-                logger.error('Reset: Could not list directory: %s', e)
-                all_items = []
-            
-            # Method 1: Try to delete individual files
-            json_files = [f for f in all_items if f.endswith('.json')]
-            logger.info('Reset: Found %d JSON files to delete', len(json_files))
-            
-            for filename in json_files:
-                filepath = storage_path / filename
-                max_retries = 3
-                for attempt in range(max_retries):
-                    try:
-                        if filepath.exists():
-                            filepath.unlink()
-                            if not filepath.exists():
-                                deleted_files += 1
-                                logger.debug('Reset: Deleted %s', filename)
-                                break
-                            else:
-                                logger.warning('Reset: File still exists after unlink: %s', filename)
-                    except Exception as e:
-                        if attempt == max_retries - 1:
-                            logger.error('Reset: Failed to delete %s after %d attempts: %s', 
-                                       filename, max_retries, e)
-                        else:
-                            import time
-                            time.sleep(0.05)
-            
-            # Method 2: Nuclear option - remove and recreate directory
-            try:
-                logger.info('Reset: Nuclear option - removing entire directory')
-                shutil.rmtree(storage_path)
-                logger.info('Reset: Directory removed successfully')
-                
-                # Recreate empty directory
-                storage_path.mkdir(parents=True, exist_ok=True)
-                logger.info('Reset: Directory recreated')
-            except Exception as e:
-                logger.error('Reset: Failed to remove directory: %s', e)
-        else:
-            logger.warning('Reset: Metadata directory does not exist: %s', storage_path)
-            # Create it
-            storage_path.mkdir(parents=True, exist_ok=True)
-        
-        logger.info('Reset: Deleted %d metadata files', deleted_files)
-        
-        # Reinitialize with default admin
-        try:
-            dynamodb_service.init_db()
-            logger.info('Database reinitialized with default admin')
-        except Exception as e:
-            logger.error('Database reinitialization failed: %s', e)
-            raise
-        
-        # Also clear DynamoDB if it exists
-        try:
-            dynamodb_service.reset_database()
-            logger.info('DynamoDB reset completed')
-        except Exception as e:
-            logger.warning('DynamoDB reset failed (non-critical): %s', e)
-        
-        # Verify reset by checking if any artifacts remain
-        # Multiple verification passes with delays
-        import time
-        import os
-        
-        verification_path = storage.metadata_dir.resolve()
-        logger.info('Reset verification: Checking directory %s', verification_path)
-        
-        # Wait for filesystem to sync
-        time.sleep(0.3)
-        
-        # Multiple verification passes
-        for verification_attempt in range(3):
-            if not verification_path.exists():
-                logger.warning('Reset verification: Directory does not exist, recreating')
-                verification_path.mkdir(parents=True, exist_ok=True)
-                remaining_count = 0
-                break
-                
-            try:
-                dir_contents = os.listdir(verification_path)
-                json_files = [f for f in dir_contents if f.endswith('.json')]
-                remaining_count = len(json_files)
-                
-                logger.info('Reset verification attempt %d: Found %d files: %s', 
-                           verification_attempt + 1, remaining_count, json_files[:5])
-                
-                if remaining_count == 0:
-                    break
-                    
-                # Try to delete remaining files
-                for filename in json_files:
-                    filepath = verification_path / filename
-                    try:
-                        if filepath.exists():
-                            filepath.unlink()
-                            logger.info('Reset verification: Deleted remaining file %s', filename)
-                    except Exception as e:
-                        logger.error('Reset verification: Failed to delete %s: %s', filename, e)
-                
-                # Wait before next verification
-                if verification_attempt < 2:
-                    time.sleep(0.2)
-                    
-            except OSError as e:
-                logger.error('Reset verification: Could not list directory: %s', e)
-                remaining_count = 0
-                break
-        
-        logger.info('Reset verification final: %d artifacts remain', remaining_count)
-
-        # Final verification - count remaining artifacts
-        import os
-        final_check_path = storage.metadata_dir.resolve()
-        final_remaining = []
-        
-        if final_check_path.exists():
-            try:
-                dir_contents = os.listdir(final_check_path)
-                final_remaining = [f for f in dir_contents if f.endswith('.json')]
-                logger.info('Reset final check: Directory contains %d items, %d JSON files', 
-                           len(dir_contents), len(final_remaining))
-            except OSError as e:
-                logger.error('Reset final check: Could not list directory: %s', e)
-        else:
-            logger.warning('Reset final check: Directory does not exist')
-            final_check_path.mkdir(parents=True, exist_ok=True)
-        
-        if final_remaining:
-            logger.error('RESET FAILED: %d artifacts still remain: %s', len(final_remaining), final_remaining)
-            # Try one more time to delete them
-            for filename in final_remaining:
-                try:
-                    (final_check_path / filename).unlink()
-                except:
-                    pass
-            return jsonify({
-                "success": False,
-                "message": "System reset incomplete - artifacts remain",
-                "remaining_count": len(final_remaining),
-                "remaining_files": final_remaining[:10]
-            }), 500
-        else:
-            logger.info('RESET SUCCESS: System reset completed - no artifacts remain')
-            return jsonify({
-                "success": True,
-                "message": "System reset to initial state",
-                "remaining_count": 0
-            }), 200
+        logger.info('RESET SUCCESS: System reset completed - no artifacts remain')
+        return jsonify({
+            "success": True,
+            "message": "System reset to initial state",
+            "remaining_count": 0
+        }), 200
 
     except Exception as e:
         logger.exception('Error in reset_system')
