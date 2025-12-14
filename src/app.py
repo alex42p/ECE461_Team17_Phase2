@@ -306,8 +306,7 @@ def search_by_regex():
         logger.debug('Searching packages in DynamoDB with pattern: %s', regex_pattern)
         
         matching_packages = dynamodb_service.search_packages_by_regex(regex_pattern)
-        # return a list of matching packages' metadata dicts
-        
+
         # return only the metadata fields from package
         return_list = []
         for pkg in matching_packages:
@@ -317,7 +316,6 @@ def search_by_regex():
                 "type": pkg.get("metadata", {}).get("type", "")
             })
 
-        # change later
         return jsonify(return_list), 200
 
     except ValueError as e:
@@ -676,7 +674,7 @@ def query_artifacts():
         {
             "name": "string",
             "types": [
-            "model"
+                "model"
             ]
         }
     ]
@@ -711,14 +709,18 @@ def query_artifacts():
             for query in data:
                 name_pattern = query.get("name", "")
                 type_filters = query.get("types", [])
+
+                # Wildcard match
+                if name_pattern == "*" or "*" in type_filters:
+                    matches = True
+                    break
                 
                 # Get package name from metadata
                 pkg_name = package.get("metadata", {}).get("name", "")
                 pkg_type = package.get("metadata", {}).get("type", "")
                 
-                # Name matching (support wildcards)
-                name_match = (name_pattern == "*" or 
-                            name_pattern.lower() in pkg_name.lower())
+                # Name matching 
+                name_match = (name_pattern.lower() in pkg_name.lower())
                 
                 # Type filtering
                 type_match = (not type_filters or pkg_type in type_filters)
@@ -735,7 +737,7 @@ def query_artifacts():
                 })
         
         # Return appropriate format
-        return jsonify(results), 200
+        return jsonify(results[offset:]), 200
         
     except Exception as e:
         logger.exception('Error in query_artifacts')
