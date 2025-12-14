@@ -657,7 +657,7 @@ def query_artifacts():
     If you want to enumerate all artifacts, provide an array with a single artifact_query whose name is "*".
     The response is paginated; the response header includes the offset to use in the next query.
     Parameters:
-    - offset (int, optional): Provide this for pagination. If not provided, returns the first page of results.
+    - offset (str): Provide this for pagination. If not provided, returns the first page of results.
     Request body:
     [
         {
@@ -676,10 +676,12 @@ def query_artifacts():
         },
         ...
     ]
+    Response header: 
+    - offset (str): Offset to use for the next page of results. Omitted if no more results.
     """
     try:
         data = request.get_json() # list of dicts
-        offset = int(request.args.get('offset', 0))
+        offset = request.args.get('offset')
 
         # logger.debug(f'Querying artifacts with data: {data} and offset: {offset}')
         
@@ -724,9 +726,14 @@ def query_artifacts():
                     "name": package.get("metadata", {}).get("name", ""),
                     "type": package.get("metadata", {}).get("type", "")
                 })
-        
+        # add offset header to response here
+        response = jsonify(results)
+        if offset is not None:
+            response.headers['offset'] = offset
+        else:
+            response.headers['offset'] = '0'
         # Return appropriate format
-        return jsonify(results[offset:]), 200
+        return response, 200
         
     except Exception as e:
         logger.exception('Error in query_artifacts')
