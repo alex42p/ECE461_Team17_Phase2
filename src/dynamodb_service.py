@@ -107,75 +107,7 @@ class DynamoDBService:
         except Exception as e:
             self.logger.error(f"Error initializing tables: {e}")
             raise
-    
-    def create_tables(self):
-        """
-        Create all required DynamoDB tables with proper indexes.
-        This should be run once during initial setup.
-        """
-        try:
-            # packages table
-            self._create_packages_table()
-            
-            self.logger.info("All DynamoDB table(s) created successfully")
-            
-        except Exception as e:
-            self.logger.error(f"Error creating tables: {e}")
-            raise
-    
-    def _create_packages_table(self):
-        """Create Packages table for artifacts"""
-        table_name = f'{self.table_prefix}-Packages'
-        
-        try:
-            table = self.dynamodb.create_table(
-                TableName=table_name,
-                KeySchema=[
-                    {'AttributeName': 'id', 'KeyType': 'HASH'},  # partition key
-                ],
-                AttributeDefinitions=[
-                    {'AttributeName': 'id', 'AttributeType': 'S'},
-                    {'AttributeName': 'name', 'AttributeType': 'S'},
-                    {'AttributeName': 'artifact_type', 'AttributeType': 'S'},
-                    {'AttributeName': 'created_at', 'AttributeType': 'S'},
-                ],
-                GlobalSecondaryIndexes=[
-                    {
-                        'IndexName': 'NameIndex',
-                        'KeySchema': [
-                            {'AttributeName': 'name', 'KeyType': 'HASH'},
-                            {'AttributeName': 'created_at', 'KeyType': 'RANGE'},
-                        ],
-                        'Projection': {'ProjectionType': 'ALL'},
-                        'ProvisionedThroughput': {
-                            'ReadCapacityUnits': 5,
-                            'WriteCapacityUnits': 5
-                        }
-                    },
-                    {
-                        'IndexName': 'TypeIndex',
-                        'KeySchema': [
-                            {'AttributeName': 'artifact_type', 'KeyType': 'HASH'},
-                            {'AttributeName': 'created_at', 'KeyType': 'RANGE'},
-                        ],
-                        'Projection': {'ProjectionType': 'ALL'},
-                        'ProvisionedThroughput': {
-                            'ReadCapacityUnits': 5,
-                            'WriteCapacityUnits': 5
-                        }
-                    },
-                ],
-                BillingMode='PAY_PER_REQUEST',  # on demand pricing
-            )
-            
-            table.wait_until_exists()
-            self.logger.info(f"Created table: {table_name}")
-            
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceInUseException':
-                self.logger.info(f"Table {table_name} already exists")
-            else:
-                raise
+
     
     # PACKAGE/ARTIFACT OPERATIONS
     
@@ -238,7 +170,7 @@ class DynamoDBService:
         except ClientError as e:
             self.logger.error(f"Error getting package {package_id}: {e}")
             return None
-        
+    
     def get_all_packages(self):
         """Get all packages from DynamoDB."""
         try:
@@ -247,7 +179,6 @@ class DynamoDBService:
         except Exception as e:
             self.logger.error(f"Error getting all packages: {e}")
             return []
-
     
     def update_package(self, package_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update package"""
