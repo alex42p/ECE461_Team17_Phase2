@@ -255,7 +255,7 @@ class S3Storage:
                         'ContentType': 'application/zip',
                         'Metadata': {
                             'model_id': model_id,
-                            'source': 'huggingface' if 'artifact_type' == 'code' else 'github',
+                            'source': 'huggingface' if artifact_type == 'code' else 'github',
                         }
                     }
                 )

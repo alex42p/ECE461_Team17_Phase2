@@ -410,15 +410,6 @@ def upload_artifact(artifact_type: str):
                 "reviewedness": {"value": 0.0, "latency_ms": 1},
                 "tree_score": {"value": 0.0, "latency_ms": 1}
             }
-        # elif artifact_type == 'dataset':
-        #     # For datasets, minimal scoring - just store metadata
-        #     name = "/".join(url.rstrip("/").split("/")[-2:])
-        #     logger.debug(f"Dataset name parsed as: {name}")
-        #     scores = {"net_score": {"value": 0.0, "latency_ms": 1}}
-        # elif artifact_type == 'code':
-        #     # For code repos, minimal scoring - just store metadata
-        #     name = "/".join(url.rstrip("/").split("/")[-2:])
-        #     scores = {"net_score": {"value": 0.0, "latency_ms": 1}}
 
         # Save artifact with artifact_type
         package_info = storage.save_package( 
