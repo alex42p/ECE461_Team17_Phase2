@@ -79,6 +79,28 @@ class DynamoDBService:
             fh.setFormatter(fmt)
             self.logger.addHandler(fh)
 
+            # Optionally attach CloudWatch handler when explicitly enabled
+            try:
+                    import watchtower
+                    session = boto3.session.Session(
+                        aws_access_key_id=self.aws_access_key,
+                        aws_secret_access_key=self.aws_secret_key,
+                        region_name=self.region_name
+                    )
+                    cw_handler = watchtower.CloudWatchLogHandler(
+                        boto3_session=session,
+                        log_group='ECE461-Team17',
+                        stream_name=f"{self.__name__}"
+                    )
+                    cw_handler.setLevel(logging.INFO)
+                    cw_handler.setFormatter(fmt)
+                    # Avoid adding the same handler multiple times
+                    if not any(isinstance(h, watchtower.CloudWatchLogHandler) for h in self.logger.handlers):
+                        self.logger.addHandler(cw_handler)
+                    self.logger.info('CloudWatch logging enabled for DynamoDBService')
+            except Exception as e:
+                self.logger.warning(f'Could not initialize CloudWatch handler: {e}')
+
         self.region_name = region_name
         self.aws_access_key = aws_access_key
         self.aws_secret_key = aws_secret_key
