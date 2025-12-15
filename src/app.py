@@ -628,7 +628,7 @@ def get_artifact_by_id(artifact_type: str, id: str):
             return jsonify({"error": str(e)}), 500
         
     elif request.method == 'DELETE':
-        is_deleted = dynamodb_service.delete_package(id)
+        is_deleted = dynamodb_service.delete_package(id, False)
         if is_deleted:
             return jsonify({"success": True}), 200
         else:
