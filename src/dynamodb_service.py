@@ -83,8 +83,8 @@ class DynamoDBService:
             try:
                     import watchtower
                     session = boto3.session.Session(
-                        aws_access_key_id=self.aws_access_key,
-                        aws_secret_access_key=self.aws_secret_key,
+                        # aws_access_key_id=self.aws_access_key,
+                        # aws_secret_access_key=self.aws_secret_key,
                         region_name=self.region_name
                     )
                     cw_handler = watchtower.CloudWatchLogHandler(
