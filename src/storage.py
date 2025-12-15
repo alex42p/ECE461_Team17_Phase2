@@ -35,7 +35,7 @@ class S3Storage:
             aws_access_key: Optional[str] = None,
             aws_secret_key: Optional[str] = None,
             aws_region: Optional[str] = None,
-            bucket_name: Optional[str] = None,
+            bucket_name: Optional[str] = "team-17-model-storage ",
             hf_token: Optional[str] = None
     ):
         """Initialize storage directory."""
@@ -65,10 +65,10 @@ class S3Storage:
             # aws_secret_access_key=aws_secret_key,
             region_name=aws_region,
         )
-        self.bucket_name = bucket_name
+        self.bucket_name = "team-17-model-storage" # bucket_name
         self.hf_token = hf_token
         if self.s3_client:
-            self.logger.info("Created S3 client for region %s with bucket %s", aws_region, bucket_name)
+            self.logger.info("Created S3 client for region %s with bucket %s", aws_region, self.bucket_name)
         self.logger.info("Initialized S3Storage")
     
     def generate_package_id(self, name: str) -> str:
