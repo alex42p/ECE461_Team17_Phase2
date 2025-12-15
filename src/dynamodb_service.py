@@ -188,7 +188,7 @@ class DynamoDBService:
             self.logger.debug(f"Get package response: {response}")
             item = response.get('Item')
             self.logger.debug(f"Fetched package item: {item}")
-            if item and not item.get('is_deleted', False):
+            if item: #and not item.get('is_deleted', False):
                 return self._convert_decimals_to_float(item)
             return None
             
@@ -304,44 +304,7 @@ class DynamoDBService:
         except ClientError as e:
             self.logger.error(f"Error querying packages by type: {e}")
             return []
-    
-    # def scan_packages(self, filters: Optional[Dict] = None, limit: int = 100) -> List[Dict[str, Any]]:
-    #     """
-    #     Scan packages with optional filters.
-    #     Use sparingly - scans are expensive.
-    #     """
-    #     try:
-    #         scan_kwargs = {'Limit': limit}
-            
-    #         if filters:
-    #             filter_expr = None
-    #             expr_values = {}
-                
-    #             if 'name' in filters:
-    #                 filter_expr = 'contains(#name, :name)'
-    #                 expr_values[':name'] = filters['name']
-                
-    #             if 'artifact_type' in filters:
-    #                 type_expr = 'artifact_type = :type'
-    #                 expr_values[':type'] = filters['artifact_type']
-    #                 filter_expr = type_expr if not filter_expr else f"{filter_expr} AND {type_expr}"
-                
-    #             if filter_expr:
-    #                 scan_kwargs['FilterExpression'] = filter_expr
-    #                 scan_kwargs['ExpressionAttributeValues'] = expr_values
-    #                 if 'name' in filters:
-    #                     scan_kwargs['ExpressionAttributeNames'] = {'#name': 'name'}
-            
-    #         response = self.packages_table.scan(**scan_kwargs)
-    #         items = [self._convert_decimals_to_float(item) 
-    #                 for item in response.get('Items', [])
-    #                 if not item.get('is_deleted', False)]
-    #         return items
-            
-    #     except ClientError as e:
-    #         self.logger.error(f"Error scanning packages: {e}")
-    #         return []
-    
+
     # SYSTEM OPERATIONS
     
     def reset_database(self):
