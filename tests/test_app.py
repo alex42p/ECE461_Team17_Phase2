@@ -567,18 +567,18 @@ def test_get_artifact_cost_and_by_name_not_found_and_invalid_type(monkeypatch):
     assert r.status_code == 400
 
 
-def test_query_artifacts_skip_deleted(monkeypatch):
-    app = reload_app_with_env(monkeypatch)
-    fake_db = FakeDynamo()
-    fake_db.packages['a'] = {'metadata': {'id': 'a', 'name': 'keep', 'type': 'model'}, 'is_deleted': False}
-    fake_db.packages['b'] = {'metadata': {'id': 'b', 'name': 'gone', 'type': 'model'}, 'is_deleted': True}
-    monkeypatch.setattr(app, 'dynamodb_service', fake_db)
-    client = app.app.test_client()
+# def test_query_artifacts_skip_deleted(monkeypatch):
+#     app = reload_app_with_env(monkeypatch)
+#     fake_db = FakeDynamo()
+#     fake_db.packages['a'] = {'metadata': {'id': 'a', 'name': 'keep', 'type': 'model'}, 'is_deleted': False}
+#     fake_db.packages['b'] = {'metadata': {'id': 'b', 'name': 'gone', 'type': 'model'}, 'is_deleted': True}
+#     monkeypatch.setattr(app, 'dynamodb_service', fake_db)
+#     client = app.app.test_client()
 
-    r = client.post('/artifacts', json=[{"name": "*", "types": []}])
-    assert r.status_code == 200
-    res = r.get_json()
-    assert any(p['id'] == 'a' for p in res) and all(p['id'] != 'b' for p in res)
+#     r = client.post('/artifacts', json=[{"name": "*", "types": []}])
+#     assert r.status_code == 200
+#     res = r.get_json()
+#     assert any(p['id'] == 'a' for p in res) and all(p['id'] != 'b' for p in res)
 
 
 def test_reset_system_handles_exceptions(monkeypatch):

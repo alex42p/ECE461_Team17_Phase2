@@ -188,7 +188,7 @@ class DynamoDBService:
             self.logger.debug(f"Get package response: {response}")
             item = response.get('Item')
             self.logger.debug(f"Fetched package item: {item}")
-            if item: #and not item.get('is_deleted', False):
+            if item and not item.get('is_deleted', False):
                 return self._convert_decimals_to_float(item)
             return None
             
