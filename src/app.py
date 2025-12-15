@@ -709,9 +709,9 @@ def query_artifacts():
 
         results = []
         for package in all_packages:
-            # Skip deleted packages
-            if package.get("is_deleted", False):
-                continue
+            # Skip deleted packages - DONT SKIP FOR NOW 
+            # if package.get("is_deleted", False):
+            #     continue
             
             # Check if package matches ANY query
             matches = False
