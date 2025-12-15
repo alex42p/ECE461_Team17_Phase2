@@ -358,6 +358,9 @@ def upload_artifact(artifact_type: str):
         if not data:
             return jsonify({"error": "Request body required"}), 400
 
+        # check if expected return name gets passed as a param
+        name: Optional[str] = request.args.get("name")
+
         url = data.get("url")
         if not url:
             return jsonify({"error": "URL is required"}), 400
@@ -367,20 +370,20 @@ def upload_artifact(artifact_type: str):
             metadata = scoring_dict.get("model_metadata", {})
             # Safely extract name with fallback
             hf_metadata = metadata.get("hf_metadata", {})
-            # name = hf_metadata.get("repo_id")
-            # If repo_id not found, parse from URL
-        # if not name:
-            # Extract from URL: https://huggingface.co/google-bert/bert-base-uncased -> bert-base-uncased
-            url_parts = url.rstrip("/").split("/")
-            if len(url_parts) >= 2:
-                name = "-".join(url_parts[-2:])  # org/model format
-            else:
-                name = url_parts[-1]
+            
+            if not name:
+                # Extract from URL: https://huggingface.co/google-bert/bert-base-uncased -> bert-base-uncased
+                url_parts = url.rstrip("/").split("/")
+                if len(url_parts) >= 2:
+                    name = "-".join(url_parts[-2:])  # org/model format
+                else:
+                    name = url_parts[-1]
             logger.warning(f"Could not get repo_id from metadata, parsed from URL: {name}")
         elif artifact_type in ['dataset', 'code']:
             # Create complete score structure with defaults
             # print(url)
-            name = "-".join(url.rstrip("/").split("/")[-2:])
+            if not name:
+                name = "-".join(url.rstrip("/").split("/")[-2:])
             # print(name)
             logger.debug(f"{artifact_type} name parsed as: {name}")
             
@@ -418,8 +421,8 @@ def upload_artifact(artifact_type: str):
         #     scores = {"net_score": {"value": 0.0, "latency_ms": 1}}
 
         # Save artifact with artifact_type
-        package_info = storage.save_package(
-            name=name,
+        package_info = storage.save_package( 
+            name=name, # type: ignore
             url=url,
             artifact_type=artifact_type
         ) # this is what gets returned to the caller
@@ -568,7 +571,7 @@ def get_artifact_by_name(name: str):
         return jsonify({"error": str(e)}), 500
     
 @app.route('/artifacts/<artifact_type>/<id>', methods=['GET', 'PUT', 'DELETE'])
-def get_artifact(artifact_type: str, id: str):
+def get_artifact_by_id(artifact_type: str, id: str):
     """
     Get artifact metadata and download URL by ID.
     
