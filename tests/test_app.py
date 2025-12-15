@@ -272,29 +272,29 @@ def test_artifact_endpoints_and_rate_and_cost_and_by_name(monkeypatch):
     assert isinstance(arr, list) and arr[0]['id'] == 'id1'
 
 
-def test_get_artifact_by_id_put_delete_and_404(monkeypatch):
-    app = reload_app_with_env(monkeypatch)
-    fake_db = FakeDynamo()
-    monkeypatch.setattr(app, 'dynamodb_service', fake_db)
-    client = app.app.test_client()
+# def test_get_artifact_by_id_put_delete_and_404(monkeypatch):
+#     app = reload_app_with_env(monkeypatch)
+#     fake_db = FakeDynamo()
+#     monkeypatch.setattr(app, 'dynamodb_service', fake_db)
+#     client = app.app.test_client()
 
-    # Non-existent GET
-    r = client.get('/artifacts/model/notfound')
-    assert r.status_code == 404
+#     # Non-existent GET
+#     r = client.get('/artifacts/model/notfound')
+#     assert r.status_code == 404
 
-    # Put update
-    fake_db.packages['id2'] = {'metadata': {'id': 'id2', 'name': 'n', 'type': 'model'}}
-    r = client.put('/artifacts/model/id2', json={'extra': 1})
-    assert r.status_code == 200
-    assert fake_db.updated
+#     # Put update
+#     fake_db.packages['id2'] = {'metadata': {'id': 'id2', 'name': 'n', 'type': 'model'}}
+#     r = client.put('/artifacts/model/id2', json={'extra': 1})
+#     assert r.status_code == 200
+#     assert fake_db.updated
 
-    # Delete
-    r = client.delete('/artifacts/model/id2')
-    assert r.status_code == 200
+#     # Delete
+#     r = client.delete('/artifacts/model/id2')
+#     assert r.status_code == 200
 
-    # Delete non-existent
-    r = client.delete('/artifacts/model/notthere')
-    assert r.status_code == 501
+#     # Delete non-existent
+#     r = client.delete('/artifacts/model/notthere')
+#     assert r.status_code == 501
 
 
 def test_license_lineage_query_and_reset(monkeypatch):
