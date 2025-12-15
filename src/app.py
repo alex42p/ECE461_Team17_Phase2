@@ -544,7 +544,7 @@ def get_artifact_by_name(name: str):
         matching_packages = []
         for pkg in all_packages:
             pkg_name = pkg['name']
-            if pkg_name.lower() == name.lower() and not pkg.get("is_deleted", False):
+            if pkg_name.lower() == name.lower():# and not pkg.get("is_deleted", False):
                 matching_packages.append({
                         "id": pkg['id'],
                         "name": pkg['name'],
@@ -593,8 +593,8 @@ def get_artifact_by_id(artifact_type: str, id: str):
                 return jsonify({"error": "Artifact not found"}), 404
             
             # Check if deleted - should ALWAYS be false here
-            if package.get("is_deleted", False):
-                return jsonify({"error": "Artifact not found"}), 404
+            # if package.get("is_deleted", False):
+            #     return jsonify({"error": "Artifact not found"}), 404
             
             response = {
                 "metadata": {
