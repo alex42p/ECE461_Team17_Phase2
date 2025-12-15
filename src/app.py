@@ -334,7 +334,7 @@ def upload_artifact(artifact_type: str):
 
     Request body:
     {
-        "url": "https://huggingface.co/model-name"
+        "url": "https://huggingface.co/org/model-name"
     }
     Response body:
     {
@@ -367,19 +367,21 @@ def upload_artifact(artifact_type: str):
             metadata = scoring_dict.get("model_metadata", {})
             # Safely extract name with fallback
             hf_metadata = metadata.get("hf_metadata", {})
-            name = hf_metadata.get("repo_id")
+            # name = hf_metadata.get("repo_id")
             # If repo_id not found, parse from URL
-            if not name:
-                # Extract from URL: https://huggingface.co/bert-base-uncased -> bert-base-uncased
-                url_parts = url.rstrip("/").split("/")
-                if len(url_parts) >= 2:
-                    name = "/".join(url_parts[-2:])  # org/model format
-                else:
-                    name = url_parts[-1]
-                logger.warning(f"Could not get repo_id from metadata, parsed from URL: {name}")
+        # if not name:
+            # Extract from URL: https://huggingface.co/google-bert/bert-base-uncased -> bert-base-uncased
+            url_parts = url.rstrip("/").split("/")
+            if len(url_parts) >= 2:
+                name = "-".join(url_parts[-2:])  # org/model format
+            else:
+                name = url_parts[-1]
+            logger.warning(f"Could not get repo_id from metadata, parsed from URL: {name}")
         elif artifact_type in ['dataset', 'code']:
             # Create complete score structure with defaults
-            name = "/".join(url.rstrip("/").split("/")[-2:])
+            # print(url)
+            name = "-".join(url.rstrip("/").split("/")[-2:])
+            # print(name)
             logger.debug(f"{artifact_type} name parsed as: {name}")
             
             # Full score structure matching models
@@ -928,4 +930,4 @@ def run_scoring(url: str) -> Dict[str, Any]:
 if __name__ == '__main__':
     logger.info('Starting ECE461 Team 17 - Package Registry API')
     logger.info('Listening on http://127.0.0.1:8080')
-    app.run(host='127.0.0.1', port=8080, debug=False)
+    app.run(host='127.0.0.1', port=8080, debug=True)
