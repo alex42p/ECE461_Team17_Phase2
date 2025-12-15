@@ -571,7 +571,7 @@ def get_artifact_by_name(name: str):
         logger.exception(f'Error in get_artifact_by_name: {e}')
         return jsonify({"error": str(e)}), 500
     
-@app.route('/artifacts/<artifact_type>/<id>', methods=['GET'])
+@app.route('/artifacts/<artifact_type>/<id>', methods=['GET', 'PUT', 'DELETE'])
 def get_artifact(artifact_type: str, id: str):
     """
     Get artifact metadata and download URL by ID.
@@ -591,38 +591,58 @@ def get_artifact(artifact_type: str, id: str):
         }
     }
     """
-    try:
-        if artifact_type not in ['model', 'dataset', 'code']:
-            return jsonify({"error": "Invalid artifact type"}), 400
-        
-        # Get package from DynamoDB
-        package = dynamodb_service.get_package(id)
-        if not package:
-            logger.warning(f"Artifact {id} not found")
-            return jsonify({"error": "Artifact not found"}), 404
-        
-        # Check if deleted - should ALWAYS be false here
-        if package.get("is_deleted", False):
-            return jsonify({"error": "Artifact not found"}), 404
-        
-        response = {
-            "metadata": {
-                "id": package.get("metadata", {}).get("id", id),
-                "name": package.get("metadata", {}).get("name", ""),
-                "type": package.get("metadata", {}).get("type", artifact_type)
-            },
-            "data": {
-                "url": package.get("data", {}).get("url", ""),
-                # "download_url": package.get("data", {}).get("download_url", "")
+    if request.method == 'GET':
+        try:
+            if artifact_type not in ['model', 'dataset', 'code']:
+                return jsonify({"error": "Invalid artifact type"}), 400
+            
+            # Get package from DynamoDB
+            package = dynamodb_service.get_package(id)
+            if not package:
+                logger.warning(f"Artifact {id} not found")
+                return jsonify({"error": "Artifact not found"}), 404
+            
+            # Check if deleted - should ALWAYS be false here
+            if package.get("is_deleted", False):
+                return jsonify({"error": "Artifact not found"}), 404
+            
+            response = {
+                "metadata": {
+                    "id": package.get("metadata", {}).get("id", id),
+                    "name": package.get("metadata", {}).get("name", ""),
+                    "type": package.get("metadata", {}).get("type", artifact_type)
+                },
+                "data": {
+                    "url": package.get("data", {}).get("url", ""),
+                    # "download_url": package.get("data", {}).get("download_url", "")
+                }
             }
-        }
+            
+            logger.info(f"Successfully retrieved artifact {id}")
+            return jsonify(response), 200
+            
+        except Exception as e:
+            logger.exception(f'Error in get_artifact: {e}')
+            return jsonify({"error": str(e)}), 500
         
-        logger.info(f"Successfully retrieved artifact {id}")
-        return jsonify(response), 200
+    elif request.method == 'PUT':
+        try:
+            data = request.get_json()
+            if data:
+                dynamodb_service.update_package(id, data)
+                return jsonify({"success": True}), 200
+            else:
+                return jsonify({"error": "No data provided"}), 400
+        except Exception as e:
+            logger.exception(f'Error in update_artifact: {e}')
+            return jsonify({"error": str(e)}), 500
         
-    except Exception as e:
-        logger.exception(f'Error in get_artifact: {e}')
-        return jsonify({"error": str(e)}), 500
+    elif request.method == 'DELETE':
+        return jsonify({"error": "Not implemented"}), 501
+    
+    else:
+        return jsonify({"error": "Method not allowed"}), 405
+
 
 # probably needs some work but idk how this endpoing works exactly
 @app.route('/artifact/model/<id>/license-check', methods=['POST'])
