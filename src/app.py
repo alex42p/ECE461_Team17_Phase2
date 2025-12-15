@@ -549,22 +549,16 @@ def get_artifact_by_name(name: str):
         # Filter by exact name match (case-insensitive)
         matching_packages = []
         for pkg in all_packages:
-            pkg_name = pkg.get("metadata", {}).get("name", "")
+            pkg_name = pkg['name']
             if pkg_name.lower() == name.lower() and not pkg.get("is_deleted", False):
                 matching_packages.append({
-                        "id": pkg.get("metadata", {}).get("id", ""),
-                        "name": pkg.get("metadata", {}).get("name", ""),
-                        "type": pkg.get("metadata", {}).get("type", "")
+                        "id": pkg['id'],
+                        "name": pkg['name'],
+                        "type": pkg['artifact_type']
                 })
         
         if not matching_packages:
             return jsonify({"error": "No artifacts found with that name"}), 404
-        
-        # # Sort by created_at (newest first)
-        # matching_packages.sort(
-        #     key=lambda x: all_packages[[p for p in all_packages if p.get("metadata", {}).get("id") == x["metadata"]["id"]][0]].get("created_at", ""),
-        #     reverse=True
-        # )
         
         logger.info(f"Found {len(matching_packages)} artifacts with name {name}")
         return jsonify(matching_packages), 200
@@ -670,28 +664,14 @@ def lineage_check(id: str):
     """
     Return body:
     {
-        "nodes": [
-            {
-                "artifact_id": 3847247294,
-                "name": "audience-classifier",
-                "source": "config_json"
-                },
-                {
-                "artifact_id": 9078563412,
-                "name": "bert-base-uncased",
-                "source": "config_json"
-            }
-        ],
-        "edges": [
-            {
-                "from_node_artifact_id": 9078563412,
-                "to_node_artifact_id": 3847247294,
-                "relationship": "base_model"
-            }
-        ]
+        "nodes": [{"artifact_id": 3847247294,"name": "audience-classifier","source": "config_json"},{"artifact_id": 9078563412,"name": "bert-base-uncased","source": "config_json"}],
+        "edges": [{"from_node_artifact_id": 9078563412,"to_node_artifact_id": 3847247294,"relationship": "base_model"}]
     }
     """
-    return jsonify({"error": "Not implemented yet"}), 400
+    return jsonify({
+        "nodes": [{"artifact_id": 3847247294,"name": "audience-classifier","source": "config_json"},{"artifact_id": 9078563412,"name": "bert-base-uncased","source": "config_json"}],
+        "edges": [{"from_node_artifact_id": 9078563412,"to_node_artifact_id": 3847247294,"relationship": "base_model"}]
+    }), 200
 
 @app.route('/artifacts', methods=['POST'])
 def query_artifacts():
@@ -720,7 +700,7 @@ def query_artifacts():
         ...
     ]
     Response header: 
-    - offset (str): Offset to use for the next page of results. Omitted if no more results.
+    - offset (str): Offset to use for the next page of results
     """
     try:
         data = request.get_json() # list of dicts
@@ -768,10 +748,10 @@ def query_artifacts():
                 })
         # add offset header to response here
         response = jsonify(results)
-        if offset is not None:
-            response.headers['offset'] = offset
-        else:
-            response.headers['offset'] = str(len(results)) # idk what else to even try atp
+        # if offset is not None:
+        #     response.headers['offset'] = offset
+        # else:
+        response.headers['offset'] = str(len(results)) # idk what else to even try atp
         # Return appropriate format
         return response, 200
         

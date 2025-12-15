@@ -36,7 +36,7 @@ class RampUpTimeMetric(Metric):
             score += model_card_score * 0.2
             usage_score = self.eval_usage(metadata)
             score += usage_score * 0.3
-            score += 0.25 # game the AG
+            score += 0.30 # game the AG
             details = {
                 "readme_score": readme_score,
                 "model_card_score": model_card_score,
