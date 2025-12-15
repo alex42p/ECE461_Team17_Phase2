@@ -637,7 +637,11 @@ def get_artifact_by_id(artifact_type: str, id: str):
             return jsonify({"error": str(e)}), 500
         
     elif request.method == 'DELETE':
-        return jsonify({"error": "Not implemented"}), 501
+        is_deleted = dynamodb_service.delete_package(id)
+        if is_deleted:
+            return jsonify({"success": True}), 200
+        else:
+            return jsonify({"error": "Not implemented"}), 501
     
     else:
         return jsonify({"error": "Method not allowed"}), 405
