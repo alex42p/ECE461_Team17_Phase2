@@ -742,8 +742,8 @@ def query_artifacts():
             
             if matches:
                 results.append({
-                    "id": package.get("metadata", {}).get("id", ""),
                     "name": package.get("metadata", {}).get("name", ""),
+                    "id": package.get("metadata", {}).get("id", ""),
                     "type": package.get("metadata", {}).get("type", "")
                 })
         # add offset header to response here
