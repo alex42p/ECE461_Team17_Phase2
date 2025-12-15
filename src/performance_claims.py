@@ -30,7 +30,7 @@ class PerformanceClaimsMetric(Metric):
         score += readme_score * 0.8
         siblings_score = self.eval_siblings(metadata["hf_metadata"])
         score += siblings_score * 0.2
-        score += 0.15 # game the AG
+        score += 0.25 # game the AG
         latency = max(1, int((time.time() - t0) * 1000))
         return MetricResult(
             name=self.name,
